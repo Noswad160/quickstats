@@ -41,12 +41,13 @@ team_aliases = {
     "nets": "brooklyn nets"
 }
 
-# Dictionary to store player information
-player_team_map = {}
+# Streamlit session state to hold player data
+if 'player_team_map' not in st.session_state:
+    st.session_state['player_team_map'] = {}
+    fetch_player_data()  # Automatically fetch player data when the app starts
 
 # Function to fetch all players and their team information
 def fetch_player_data():
-    global player_team_map
     retries = 5
     for attempt in range(retries):
         try:
@@ -62,6 +63,7 @@ def fetch_player_data():
                             'id': player['PERSON_ID'],
                             'team_name': standardized_team_name
                         }
+            st.session_state['player_team_map'] = player_team_map
             break
         except RequestException as e:
             st.warning(f"Network error: {str(e)}")
@@ -74,7 +76,7 @@ def fetch_player_data():
 
 # Function to display player statistics
 def display_player_stats(selected_player, selected_stat, threshold=None):
-    player_info = player_team_map.get(selected_player, None)
+    player_info = st.session_state['player_team_map'].get(selected_player, None)
     if player_info:
         player_id = player_info['id']
         try:
@@ -159,16 +161,11 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
 # Streamlit application
 st.title("NBA Player Stats Viewer")
 
-# Load player data
-if st.button("Load Player Data"):
-    fetch_player_data()
-    st.success("Player data loaded successfully.")
-
 # Team selection
 selected_team = st.selectbox("Select Team:", sorted(team_dict.values()))
 standardized_team_name = team_aliases.get(selected_team.lower(), selected_team.lower())
 filtered_players = [
-    player for player, info in player_team_map.items()
+    player for player, info in st.session_state['player_team_map'].items()
     if info['team_name'].lower() == standardized_team_name
 ]
 
@@ -182,5 +179,5 @@ selected_stat = st.selectbox("Select Statistic:", ["Points", "Rebounds", "Assist
 threshold = st.number_input("Enter Threshold (optional):", min_value=0.0, step=1.0)
 
 # Display player stats
-if st.button("Display Player Stats"):
+if selected_player and st.button("Display Player Stats"):
     display_player_stats(selected_player, selected_stat, threshold)
