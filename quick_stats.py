@@ -41,11 +41,36 @@ team_aliases = {
     "nets": "brooklyn nets"
 }
 
-
+
 
 # Function to fetch all players and their team information
 def fetch_player_data():
     retries = 5
+    for attempt in range(retries):
+        try:
+            nba_players = commonallplayers.CommonAllPlayers(is_only_current_season=1).get_data_frames()[0]
+            player_team_map = {}
+            for _, player in nba_players.iterrows():
+                team_name = player['TEAM_NAME']
+                if team_name:
+                    team_name_lower = team_name.lower()
+                    standardized_team_name = team_aliases.get(team_name_lower, team_name.lower())
+                    if standardized_team_name in team_dict:
+                        player_team_map[player['DISPLAY_FIRST_LAST']] = {
+                            'id': player['PERSON_ID'],
+                            'team_name': standardized_team_name
+                        }
+            st.session_state['player_team_map'] = player_team_map
+            break
+        except RequestException as e:
+            st.warning(f"Network error: {str(e)}")
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            st.warning(f"Attempt {attempt + 1} of {retries}: Error fetching player data: {str(e)}")
+    else:
+        st.error("Failed to fetch player data after multiple attempts. Please check your network connection.")
+
     for attempt in range(retries):
         try:
             nba_players = commonallplayers.CommonAllPlayers(is_only_current_season=1).get_data_frames()[0]
