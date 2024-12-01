@@ -191,21 +191,21 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
 
             # Display statistics
             st.markdown(f"### Stats for {selected_player} ({stat_map.get(selected_stat, selected_stat)}, 2023-24 season):")
-            st.markdown(f"- **Average {selected_stat}:** <span style='color:red;'>{avg_stat:.2f}</span> ({avg_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
-            st.markdown(f"- **Median {selected_stat}:** <span style='color:red;'>{median_stat:.2f}</span> ({median_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
-            st.markdown(f"- **High Ceiling {selected_stat}:** <span style='color:red;'>{high_ceiling}</span> ({high_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
-            st.markdown(f"- **Low Ceiling {selected_stat}:** <span style='color:red;'>{low_ceiling}</span> ({low_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
-            st.markdown(f"- **Most Common {selected_stat}:** <span style='color:red;'>{most_common_stat}</span> ({most_common_percentage:.2f}% impact)", unsafe_allow_html=True)
+            st.markdown(f"- **Average {selected_stat}:** <span style='color:blue; font-weight:bold;'>{avg_stat:.2f}</span> ({avg_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
+            st.markdown(f"- **Median {selected_stat}:** <span style='color:blue; font-weight:bold;'>{median_stat:.2f}</span> ({median_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
+            st.markdown(f"- **High Ceiling {selected_stat}:** <span style='color:blue; font-weight:bold;'>{high_ceiling}</span> ({high_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
+            st.markdown(f"- **Low Ceiling {selected_stat}:** <span style='color:blue; font-weight:bold;'>{low_ceiling}</span> ({low_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
+            st.markdown(f"- **Most Common {selected_stat}:** <span style='color:blue; font-weight:bold;'>{most_common_stat}</span> ({most_common_percentage:.2f}% impact)", unsafe_allow_html=True)
 
             # Calculate percentage above and below the threshold if provided
             if threshold is not None:
                 above_threshold_percentage = (stats > threshold).sum() / total_games * 100 if total_games > 0 else 0
                 below_threshold_percentage = (stats < threshold).sum() / total_games * 100 if total_games > 0 else 0
-                st.markdown(f"- **Percentage Above {threshold:.2f} {selected_stat}:** <span style='color:red;'>{above_threshold_percentage:.2f}%</span>", unsafe_allow_html=True)
-                st.markdown(f"- **Percentage Below {threshold:.2f} {selected_stat}:** <span style='color:red;'>{below_threshold_percentage:.2f}%</span>", unsafe_allow_html=True)
+                st.markdown(f"- **Percentage Above {threshold:.2f} {selected_stat}:** <span style='color:blue; font-weight:bold;'>{above_threshold_percentage:.2f}%</span>", unsafe_allow_html=True)
+                st.markdown(f"- **Percentage Below {threshold:.2f} {selected_stat}:** <span style='color:blue; font-weight:bold;'>{below_threshold_percentage:.2f}%</span>", unsafe_allow_html=True)
 
             # Add suggested fair line at the end
-            st.markdown(f"- **Suggested Fair Line:** <span style='color:red;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
+            st.markdown(f"- **Suggested Fair Line:** <span style='color:blue; font-weight:bold;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
 
         except IndexError:
             st.warning("No game data available for the selected player.")
