@@ -57,13 +57,16 @@ team_aliases = {
 }
 
 # Function to fetch all players and their team information
+import time
 def fetch_player_data():
     retries = 5
     player_team_map = None
     for attempt in range(retries):
+        st.info(f"Fetching player data... Attempt {attempt + 1} of {retries}")
         try:
             nba_players = commonallplayers.CommonAllPlayers(is_only_current_season=0).get_data_frames()[0]
-            print(nba_players.head())  # Debugging step to check the fetched player data
+            st.write("Debugging: Player data fetched:")
+            st.write(nba_players.head())
             player_team_map = {}
             for _, player in nba_players.iterrows():
                 team_name = player['TEAM_NAME']
@@ -78,14 +81,16 @@ def fetch_player_data():
             st.session_state['player_team_map'] = player_team_map
             break
         except RequestException as e:
-            st.warning(f"Network error: {str(e)}")
+            st.warning(f"Network error: {str(e)}. Retrying in 5 seconds...")
+            time.sleep(5)
         except Exception as e:
             import traceback
             traceback.print_exc()
-            st.warning(f"Attempt {attempt + 1} of {retries}: Error fetching player data: {str(e)}")
+            st.warning(f"Attempt {attempt + 1} of {retries}: Error fetching player data: {str(e)}. Retrying in 5 seconds...")
+            time.sleep(5)
 
     if not player_team_map:
-        st.error("Failed to fetch player data after multiple attempts. Please check your network connection or if the API data is up-to-date.")
+        st.error("Failed to fetch player data after multiple attempts. The NBA API may be experiencing issues, or your connection may be unstable. Please try again later.")
         return
 
 # Proper handling for game log retrieval for entire career
@@ -163,7 +168,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
         except IndexError:
             st.warning(f"No game data available for {selected_player}.")
         except RequestException as e:
-            st.error(f"Network error while fetching data for {selected_player}: {str(e)}")
+            st.error(f"Network error while fetching data for {selected_player}: {str(e)}. Please check your connection or try again later.")
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
