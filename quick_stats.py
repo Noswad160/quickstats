@@ -72,16 +72,14 @@ def fetch_player_data():
         st.error("Failed to fetch player data after multiple attempts. Please check your network connection.")
         return
 
-# Proper handling for game log retrieval when either season is empty
+# Proper handling for game log retrieval for entire career
 def display_player_stats(selected_player, selected_stat, threshold=None):
     player_info = st.session_state['player_team_map'].get(selected_player, None)
     if player_info:
         player_id = player_info['id']
         try:
-            # Retrieve player's game log for the current and previous season
-            gamelog_current = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25').get_data_frames()[0]
-            gamelog_previous = playergamelog.PlayerGameLog(player_id=player_id, season='2023-24').get_data_frames()[0]
-            gamelog_df = pd.concat([gamelog_current, gamelog_previous], ignore_index=True)
+            # Retrieve player's entire career game log
+            gamelog_df = playergamelog.PlayerGameLog(player_id=player_id).get_data_frames()[0]
 
             # Check if the gamelog is empty
             if gamelog_df.empty:
@@ -129,7 +127,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             median_stat_percentage = ((stats >= median_range[0]) & (stats <= median_range[1])).sum() / total_games * 100 if total_games > 0 else 0
 
             # Display statistics
-            st.markdown(f"### Stats for {selected_player} ({selected_stat}, 2023-24 and 2024-25 seasons):")
+            st.markdown(f"### Stats for {selected_player} ({selected_stat}, Entire Career):")
             st.markdown(f"- **Average {selected_stat}:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span> ({avg_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **Median {selected_stat}:** <span style='color:green; font-weight:bold;'>{median_stat:.2f}</span> ({median_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **High Ceiling {selected_stat}:** <span style='color:green; font-weight:bold;'>{high_ceiling}</span> ({high_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
