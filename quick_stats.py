@@ -6,6 +6,7 @@ import numpy as np
 import collections
 from requests.exceptions import RequestException
 import datetime
+import time
 
 # Get all NBA teams
 nba_teams = teams.get_teams()
@@ -52,6 +53,7 @@ def fetch_player_data():
             for _, player in nba_players.iterrows():
                 team_name = player['TEAM_NAME']
                 if team_name:
+                    # Standardize team names consistently
                     team_name_lower = team_name.lower()
                     standardized_team_name = team_aliases.get(team_name_lower, team_name.lower())
                     if standardized_team_name in team_dict.values():
@@ -62,7 +64,8 @@ def fetch_player_data():
             st.session_state['player_team_map'] = player_team_map
             break
         except RequestException as e:
-            st.warning(f"Network error: {str(e)}")
+            st.warning(f"Network error: {str(e)}. Retrying...")
+            time.sleep(2)  # Add delay between retries
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -139,7 +142,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             st.markdown(f"- **Most Common {selected_stat}:** <span style='color:green; font-weight:bold;'>{most_common_stat}</span> (Achieved {most_common_percentage:.2f}% of games)", unsafe_allow_html=True)
 
             # Calculate percentage above and below the threshold if provided
-            if threshold is not None:
+            if threshold is not None and threshold > 0:
                 above_threshold_percentage = (stats > threshold).sum() / total_games * 100 if total_games > 0 else 0
                 below_threshold_percentage = (stats < threshold).sum() / total_games * 100 if total_games > 0 else 0
                 st.markdown(f"- **Percentage Above {threshold:.2f} {selected_stat}:** <span style='color:green; font-weight:bold;'>{above_threshold_percentage:.2f}%</span>", unsafe_allow_html=True)
