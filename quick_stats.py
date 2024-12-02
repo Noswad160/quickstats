@@ -4,6 +4,7 @@ from nba_api.stats.endpoints import commonallplayers, playergamelog
 import pandas as pd
 import numpy as np
 import collections
+import matplotlib.pyplot as plt
 from requests.exceptions import RequestException
 
 # Get all NBA teams
@@ -41,36 +42,9 @@ team_aliases = {
     "nets": "brooklyn nets"
 }
 
-
-
 # Function to fetch all players and their team information
 def fetch_player_data():
     retries = 5
-    for attempt in range(retries):
-        try:
-            nba_players = commonallplayers.CommonAllPlayers(is_only_current_season=1).get_data_frames()[0]
-            player_team_map = {}
-            for _, player in nba_players.iterrows():
-                team_name = player['TEAM_NAME']
-                if team_name:
-                    team_name_lower = team_name.lower()
-                    standardized_team_name = team_aliases.get(team_name_lower, team_name.lower())
-                    if standardized_team_name in team_dict:
-                        player_team_map[player['DISPLAY_FIRST_LAST']] = {
-                            'id': player['PERSON_ID'],
-                            'team_name': standardized_team_name
-                        }
-            st.session_state['player_team_map'] = player_team_map
-            break
-        except RequestException as e:
-            st.warning(f"Network error: {str(e)}")
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            st.warning(f"Attempt {attempt + 1} of {retries}: Error fetching player data: {str(e)}")
-    else:
-        st.error("Failed to fetch player data after multiple attempts. Please check your network connection.")
-
     for attempt in range(retries):
         try:
             nba_players = commonallplayers.CommonAllPlayers(is_only_current_season=1).get_data_frames()[0]
@@ -100,34 +74,6 @@ def fetch_player_data():
 if 'player_team_map' not in st.session_state or not st.session_state['player_team_map']:
     fetch_player_data()
 
-# Function to fetch all players and their team information
-def fetch_player_data():
-    retries = 5
-    for attempt in range(retries):
-        try:
-            nba_players = commonallplayers.CommonAllPlayers(is_only_current_season=1).get_data_frames()[0]
-            player_team_map = {}
-            for _, player in nba_players.iterrows():
-                team_name = player['TEAM_NAME']
-                if team_name:
-                    team_name_lower = team_name.lower()
-                    standardized_team_name = team_aliases.get(team_name_lower, team_name.lower())
-                    if standardized_team_name in team_dict:
-                        player_team_map[player['DISPLAY_FIRST_LAST']] = {
-                            'id': player['PERSON_ID'],
-                            'team_name': standardized_team_name
-                        }
-            st.session_state['player_team_map'] = player_team_map
-            break
-        except RequestException as e:
-            st.warning(f"Network error: {str(e)}")
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            st.warning(f"Attempt {attempt + 1} of {retries}: Error fetching player data: {str(e)}")
-    else:
-        st.error("Failed to fetch player data after multiple attempts. Please check your network connection.")
-
 # Function to display player statistics
 def display_player_stats(selected_player, selected_stat, threshold=None):
     player_info = st.session_state['player_team_map'].get(selected_player, None)
@@ -143,34 +89,24 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
                 return
             # Determine which statistic to display
             stat_map = {
-                "Points": "Points",
-                "Rebounds": "Rebounds",
-                "Assists": "Assists",
-                "P + R": "Points + Rebounds",
-                "P + A": "Points + Assists",
-                "R + A": "Rebounds + Assists",
-                "P + R + A": "Points + Rebounds + Assists"
+                "Points": "PTS",
+                "Rebounds": "REB",
+                "Assists": "AST",
+                "P + R": ["PTS", "REB"],
+                "P + A": ["PTS", "AST"],
+                "R + A": ["REB", "AST"],
+                "P + R + A": ["PTS", "REB", "AST"]
             }
-            if selected_stat == "Points":
-                stat_columns = ['PTS']
-            elif selected_stat == "Rebounds":
-                stat_columns = ['REB']
-            elif selected_stat == "Assists":
-                stat_columns = ['AST']
-            elif selected_stat == "P + R":
-                stat_columns = ['PTS', 'REB']
-            elif selected_stat == "P + A":
-                stat_columns = ['PTS', 'AST']
-            elif selected_stat == "R + A":
-                stat_columns = ['REB', 'AST']
-            elif selected_stat == "P + R + A":
-                stat_columns = ['PTS', 'REB', 'AST']
-            else:
+            stat_columns = stat_map.get(selected_stat, None)
+            if stat_columns is None:
                 st.warning("Please select a valid statistic type.")
                 return
 
             # Calculate statistics
-            stats = gamelog_df[stat_columns].fillna(0).sum(axis=1)
+            if isinstance(stat_columns, list):
+                stats = gamelog_df[stat_columns].fillna(0).sum(axis=1)
+            else:
+                stats = gamelog_df[stat_columns].fillna(0)
             if stats.empty:
                 st.warning(f"No data available for {selected_stat.lower()} for the selected player.")
                 return
@@ -190,7 +126,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             median_stat_percentage = ((stats >= median_range[0]) & (stats <= median_range[1])).sum() / total_games * 100 if total_games > 0 else 0
 
             # Display statistics
-            st.markdown(f"### Stats for {selected_player} ({stat_map.get(selected_stat, selected_stat)}, 2023-24 season):")
+            st.markdown(f"### Stats for {selected_player} ({selected_stat}, 2023-24 season):")
             st.markdown(f"- **Average {selected_stat}:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span> ({avg_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **Median {selected_stat}:** <span style='color:green; font-weight:bold;'>{median_stat:.2f}</span> ({median_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **High Ceiling {selected_stat}:** <span style='color:green; font-weight:bold;'>{high_ceiling}</span> ({high_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
@@ -206,6 +142,16 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
 
             # Add suggested fair line at the end
             st.markdown(f"- **Suggested Fair Line:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
+
+            # Plot the chart for the last five games for the selected stat
+            last_five_games = stats.head(5)[::-1]  # Get the last 5 games and reverse for chronological order
+            fig, ax = plt.subplots()
+            ax.plot(last_five_games.index, last_five_games, marker='o', linestyle='-', linewidth=2)
+            ax.set_title(f"Last 5 Games - {selected_stat} for {selected_player}")
+            ax.set_xlabel("Game Number")
+            ax.set_ylabel(selected_stat)
+            ax.grid(True)
+            st.pyplot(fig)
 
         except IndexError:
             st.warning("No game data available for the selected player.")
