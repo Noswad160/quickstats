@@ -168,6 +168,10 @@ filtered_players = [
     if info['team_name'] == standardized_team_name
 ]
 
+# Check if there are no players for the selected team
+if not filtered_players:
+    st.warning("No players available for the selected team. Please select a different team.")
+
 # Player selection
 selected_player = st.selectbox("Select Player:", sorted(filtered_players) if filtered_players else ["No players available"])
 
