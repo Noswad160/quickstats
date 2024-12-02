@@ -127,7 +127,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             median_stat_percentage = ((stats >= median_range[0]) & (stats <= median_range[1])).sum() / total_games * 100 if total_games > 0 else 0
 
             # Display statistics
-            st.markdown(f"### Stats for {selected_player} ({selected_stat}, Entire Career):")
+            st.markdown(f"### Stats for {selected_player}:")
             st.markdown(f"- **Average {selected_stat}:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span> ({avg_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **Median {selected_stat}:** <span style='color:green; font-weight:bold;'>{median_stat:.2f}</span> ({median_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **High Ceiling {selected_stat}:** <span style='color:green; font-weight:bold;'>{high_ceiling}</span> ({high_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
