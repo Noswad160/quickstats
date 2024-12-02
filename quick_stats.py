@@ -55,7 +55,7 @@ def fetch_player_data():
                 if team_name:
                     # Standardize team names consistently
                     team_name_lower = team_name.lower()
-                    standardized_team_name = team_aliases.get(team_name_lower, team_name.lower())
+                    standardized_team_name = team_aliases.get(team_name_lower, team_dict.get(team_name_lower, team_name_lower))
                     if standardized_team_name in team_dict.values():
                         player_team_map[player['DISPLAY_FIRST_LAST']] = {
                             'id': player['PERSON_ID'],
@@ -161,7 +161,7 @@ st.title("NBA Player Stats Viewer")
 
 # Team selection
 selected_team = st.selectbox("Select Team:", sorted(team_dict.values()))
-standardized_team_name = team_aliases.get(selected_team.lower(), selected_team.lower())
+standardized_team_name = team_aliases.get(selected_team.lower(), team_dict.get(selected_team.lower(), selected_team.lower()))
 filtered_players = [
     player for player, info in st.session_state['player_team_map'].items()
     if info['team_name'].lower() == standardized_team_name
