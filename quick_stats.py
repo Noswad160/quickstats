@@ -47,7 +47,8 @@ def fetch_player_data():
     player_team_map = None
     for attempt in range(retries):
         try:
-            nba_players = commonallplayers.CommonAllPlayers(is_only_current_season=1).get_data_frames()[0]
+            nba_players = commonallplayers.CommonAllPlayers(is_only_current_season=0).get_data_frames()[0]
+            print(nba_players.head())  # Debugging step to check the fetched player data
             player_team_map = {}
             for _, player in nba_players.iterrows():
                 team_name = player['TEAM_NAME']
@@ -69,7 +70,7 @@ def fetch_player_data():
             st.warning(f"Attempt {attempt + 1} of {retries}: Error fetching player data: {str(e)}")
 
     if not player_team_map:
-        st.error("Failed to fetch player data after multiple attempts. Please check your network connection.")
+        st.error("Failed to fetch player data after multiple attempts. Please check your network connection or if the API data is up-to-date.")
         return
 
 # Proper handling for game log retrieval for entire career
