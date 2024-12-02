@@ -161,10 +161,10 @@ st.title("NBA Player Stats Viewer")
 
 # Team selection
 selected_team = st.selectbox("Select Team:", sorted(team_dict.values()))
-standardized_team_name = team_aliases.get(selected_team.lower(), selected_team)
+standardized_team_name = team_aliases.get(selected_team.lower(), selected_team.lower())
 filtered_players = [
     player for player, info in st.session_state['player_team_map'].items()
-    if info['team_name'].lower() == standardized_team_name.lower()
+    if info['team_name'].lower() == standardized_team_name
 ]
 
 # Player selection
