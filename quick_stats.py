@@ -4,7 +4,6 @@ from nba_api.stats.endpoints import commonallplayers, playergamelog
 import pandas as pd
 import numpy as np
 import collections
-import matplotlib.pyplot as plt
 from requests.exceptions import RequestException
 
 # Get all NBA teams
@@ -143,16 +142,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             # Add suggested fair line at the end
             st.markdown(f"- **Suggested Fair Line:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
 
-            # Plot the chart for the last five games for the selected stat
-            last_five_games = stats.iloc[:5][::-1]  # Get the last 5 games and reverse for chronological order
-            fig, ax = plt.subplots()
-            ax.plot(last_five_games.index, last_five_games, marker='o', linestyle='-', linewidth=2)
-            ax.set_title(f"Last 5 Games - {selected_stat} for {selected_player}")
-            ax.set_xlabel("Game Number")
-            ax.set_ylabel(selected_stat)
-            ax.grid(True)
-            st.pyplot(fig)
-
+            
         except IndexError:
             st.warning("No game data available for the selected player.")
         except Exception as e:
