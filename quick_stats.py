@@ -79,12 +79,9 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
     if player_info:
         player_id = player_info['id']
         try:
-            # Retrieve player's game log for the current and previous season
-            gamelog_current = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25')
-            gamelog_previous = playergamelog.PlayerGameLog(player_id=player_id, season='2023-24')
-            gamelog_current_df = gamelog_current.get_data_frames()[0]
-            gamelog_previous_df = gamelog_previous.get_data_frames()[0]
-            gamelog_df = pd.concat([gamelog_current_df, gamelog_previous_df])
+            # Retrieve player's complete game log for their career
+            gamelog = playergamelog.PlayerGameLog(player_id=player_id, season_type_all_star='Regular Season')
+            gamelog_df = gamelog.get_data_frames()[0]
 
             # Check if the gamelog is empty
             if gamelog_df.empty:
