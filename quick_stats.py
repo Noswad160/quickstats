@@ -52,7 +52,7 @@ def fetch_player_data():
                 team_name = player['TEAM_NAME']
                 if team_name:
                     team_name_lower = team_name.lower()
-                    standardized_team_name = team_aliases.get(team_name_lower, team_name.lower())
+                    standardized_team_name = team_aliases.get(team_name_lower, team_name_lower)
                     if standardized_team_name in team_dict:
                         player_team_map[player['DISPLAY_FIRST_LAST']] = {
                             'id': player['PERSON_ID'],
@@ -121,7 +121,6 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             high_ceiling = np.max(stats)
             low_ceiling = np.min(stats)
             most_common_stat = collections.Counter(stats).most_common(1)[0][0] if len(stats) > 0 else None
-
             avg_range = (avg_stat * 0.9, avg_stat * 1.1)
             median_range = (median_stat * 0.9, median_stat * 1.1)
 
@@ -160,7 +159,7 @@ st.title("NBA Player Stats Viewer")
 
 # Team selection
 selected_team = st.selectbox("Select Team:", sorted(team_dict.values()))
-standardized_team_name = team_aliases.get(selected_team.lower(), selected_team)
+standardized_team_name = team_aliases.get(selected_team.lower(), selected_team.lower())
 filtered_players = [
     player for player, info in st.session_state['player_team_map'].items()
     if info['team_name'].lower() == standardized_team_name
