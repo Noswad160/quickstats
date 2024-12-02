@@ -80,16 +80,17 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
         player_id = player_info['id']
         try:
             # Retrieve player's game log for the current and previous season
-                        gamelog_current = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25')
+            gamelog_current = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25')
             gamelog_previous = playergamelog.PlayerGameLog(player_id=player_id, season='2023-24')
-                                    gamelog_current_df = gamelog_current.get_data_frames()[0]
+            gamelog_current_df = gamelog_current.get_data_frames()[0]
             gamelog_previous_df = gamelog_previous.get_data_frames()[0]
             gamelog_df = pd.concat([gamelog_current_df, gamelog_previous_df])
-    gamelog_df = pd.concat([gamelog_current_df, gamelog_previous_df])
+
             # Check if the gamelog is empty
             if gamelog_df.empty:
                 st.warning("No game data available for the selected player.")
                 return
+
             # Determine which statistic to display
             stat_map = {
                 "Points": "PTS",
@@ -110,14 +111,17 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
                 stats = gamelog_df[stat_columns].fillna(0).sum(axis=1)
             else:
                 stats = gamelog_df[stat_columns].fillna(0)
+
             if stats.empty:
                 st.warning(f"No data available for {selected_stat.lower()} for the selected player.")
                 return
+
             avg_stat = np.mean(stats)
             median_stat = np.median(stats)
             high_ceiling = np.max(stats)
             low_ceiling = np.min(stats)
             most_common_stat = collections.Counter(stats).most_common(1)[0][0] if len(stats) > 0 else None
+
             avg_range = (avg_stat * 0.9, avg_stat * 1.1)
             median_range = (median_stat * 0.9, median_stat * 1.1)
 
@@ -146,7 +150,6 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             # Add suggested fair line at the end
             st.markdown(f"- **Suggested Fair Line:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
 
-            
         except IndexError:
             st.warning("No game data available for the selected player.")
         except Exception as e:
@@ -157,7 +160,7 @@ st.title("NBA Player Stats Viewer")
 
 # Team selection
 selected_team = st.selectbox("Select Team:", sorted(team_dict.values()))
-standardized_team_name = team_aliases.get(selected_team.lower(), selected_team.lower())
+standardized_team_name = team_aliases.get(selected_team.lower(), selected_team)
 filtered_players = [
     player for player, info in st.session_state['player_team_map'].items()
     if info['team_name'].lower() == standardized_team_name
