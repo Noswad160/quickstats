@@ -44,6 +44,7 @@ team_aliases = {
 # Function to fetch all players and their team information
 def fetch_player_data():
     retries = 5
+    player_team_map = None
     for attempt in range(retries):
         try:
             nba_players = commonallplayers.CommonAllPlayers(is_only_current_season=1).get_data_frames()[0]
@@ -66,25 +67,21 @@ def fetch_player_data():
             import traceback
             traceback.print_exc()
             st.warning(f"Attempt {attempt + 1} of {retries}: Error fetching player data: {str(e)}")
-    else:
+
+    if not player_team_map:
         st.error("Failed to fetch player data after multiple attempts. Please check your network connection.")
+        return
 
-# Automatically fetch player data when the app starts
-if 'player_team_map' not in st.session_state or not st.session_state['player_team_map']:
-    fetch_player_data()
-
-# Function to display player statistics
+# Proper handling for game log retrieval when either season is empty
 def display_player_stats(selected_player, selected_stat, threshold=None):
     player_info = st.session_state['player_team_map'].get(selected_player, None)
     if player_info:
         player_id = player_info['id']
         try:
             # Retrieve player's game log for the current and previous season
-            gamelog_current = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25')
-            gamelog_previous = playergamelog.PlayerGameLog(player_id=player_id, season='2023-24')
-            gamelog_current_df = gamelog_current.get_data_frames()[0]
-            gamelog_previous_df = gamelog_previous.get_data_frames()[0]
-            gamelog_df = pd.concat([gamelog_current_df, gamelog_previous_df])
+            gamelog_current = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25').get_data_frames()[0]
+            gamelog_previous = playergamelog.PlayerGameLog(player_id=player_id, season='2023-24').get_data_frames()[0]
+            gamelog_df = pd.concat([gamelog_current, gamelog_previous], ignore_index=True)
 
             # Check if the gamelog is empty
             if gamelog_df.empty:
@@ -150,30 +147,28 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             st.markdown(f"- **Suggested Fair Line:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
 
         except IndexError:
-            st.warning("No game data available for the selected player.")
+            st.warning(f"No game data available for {selected_player}.")
+        except RequestException as e:
+            st.error(f"Network error while fetching data for {selected_player}: {str(e)}")
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
 # Streamlit application
 st.title("NBA Player Stats Viewer")
 
-# Team selection
 selected_team = st.selectbox("Select Team:", sorted(team_dict.values()))
 standardized_team_name = team_aliases.get(selected_team.lower(), selected_team.lower())
 filtered_players = [
-    player for player, info in st.session_state['player_team_map'].items()
+    player for player, info in st.session_state.get('player_team_map', {}).items()
     if info['team_name'].lower() == standardized_team_name
 ]
 
-# Player selection
-selected_player = st.selectbox("Select Player:", sorted(filtered_players) if filtered_players else [])
+if filtered_players:
+    selected_player = st.selectbox("Select Player:", sorted(filtered_players))
+    selected_stat = st.selectbox("Select Statistic:", ["Points", "Rebounds", "Assists", "P + R", "P + A", "R + A", "P + R + A"])
+    threshold = st.number_input("Enter Threshold (optional):", min_value=0.0, step=1.0)
 
-# Statistic type selection
-selected_stat = st.selectbox("Select Statistic:", ["Points", "Rebounds", "Assists", "P + R", "P + A", "R + A", "P + R + A"])
-
-# Threshold input
-threshold = st.number_input("Enter Threshold (optional):", min_value=0.0, step=1.0)
-
-# Display player stats
-if selected_player and st.button("Display Player Stats"):
-    display_player_stats(selected_player, selected_stat, threshold)
+    if selected_player and st.button("Display Player Stats"):
+        display_player_stats(selected_player, selected_stat, threshold)
+else:
+    st.warning("No players available for the selected team. Please choose a different team.")
