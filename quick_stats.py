@@ -53,7 +53,7 @@ def fetch_player_data():
                 if team_name:
                     team_name_lower = team_name.lower()
                     standardized_team_name = team_aliases.get(team_name_lower, team_name.lower())
-                    if standardized_team_name in team_dict.values():
+                    if standardized_team_name in team_dict:
                         player_team_map[player['DISPLAY_FIRST_LAST']] = {
                             'id': player['PERSON_ID'],
                             'team_name': standardized_team_name
@@ -79,9 +79,12 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
     if player_info:
         player_id = player_info['id']
         try:
-            # Retrieve player's complete game log for their career
-            gamelog = playergamelog.PlayerGameLog(player_id=player_id, season_type_all_star='Regular Season')
-            gamelog_df = gamelog.get_data_frames()[0]
+            # Retrieve player's game log for the current and previous season
+            gamelog_current = playergamelog.PlayerGameLog(player_id=player_id, season='2024-25')
+            gamelog_previous = playergamelog.PlayerGameLog(player_id=player_id, season='2023-24')
+            gamelog_current_df = gamelog_current.get_data_frames()[0]
+            gamelog_previous_df = gamelog_previous.get_data_frames()[0]
+            gamelog_df = pd.concat([gamelog_current_df, gamelog_previous_df])
 
             # Check if the gamelog is empty
             if gamelog_df.empty:
@@ -130,7 +133,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             median_stat_percentage = ((stats >= median_range[0]) & (stats <= median_range[1])).sum() / total_games * 100 if total_games > 0 else 0
 
             # Display statistics
-            st.markdown(f"### Stats for {selected_player}")
+            st.markdown(f"### Stats for {selected_player} ({selected_stat}, 2023-24 and 2024-25 seasons):")
             st.markdown(f"- **Average {selected_stat}:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span> ({avg_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **Median {selected_stat}:** <span style='color:green; font-weight:bold;'>{median_stat:.2f}</span> ({median_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **High Ceiling {selected_stat}:** <span style='color:green; font-weight:bold;'>{high_ceiling}</span> ({high_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
@@ -160,11 +163,11 @@ selected_team = st.selectbox("Select Team:", sorted(team_dict.values()))
 standardized_team_name = team_aliases.get(selected_team.lower(), selected_team)
 filtered_players = [
     player for player, info in st.session_state['player_team_map'].items()
-    if info['team_name'].lower() == standardized_team_name.lower()
+    if info['team_name'].lower() == standardized_team_name
 ]
 
 # Player selection
-selected_player = st.selectbox("Select Player:", sorted(filtered_players) if filtered_players else ["No players available"])
+selected_player = st.selectbox("Select Player:", sorted(filtered_players) if filtered_players else [])
 
 # Statistic type selection
 selected_stat = st.selectbox("Select Statistic:", ["Points", "Rebounds", "Assists", "P + R", "P + A", "R + A", "P + R + A"])
@@ -173,5 +176,5 @@ selected_stat = st.selectbox("Select Statistic:", ["Points", "Rebounds", "Assist
 threshold = st.number_input("Enter Threshold (optional):", min_value=0.0, step=1.0)
 
 # Display player stats
-if selected_player and selected_player != "No players available" and st.button("Display Player Stats"):
+if selected_player and st.button("Display Player Stats"):
     display_player_stats(selected_player, selected_stat, threshold)
