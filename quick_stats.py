@@ -134,8 +134,8 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             st.markdown(f"- **Low Ceiling {selected_stat}:** <span style='color:green; font-weight:bold;'>{low_ceiling}</span> ({low_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **Most Common {selected_stat}:** <span style='color:green; font-weight:bold;'>{most_common_stat}</span> (Achieved {most_common_percentage:.2f}% of games)", unsafe_allow_html=True)
 
-            # Calculate percentage above and below the threshold if provided
-            if threshold is not None:
+            # Calculate percentage above and below the threshold if provided and greater than zero
+            if threshold is not None and threshold > 0:
                 above_threshold_percentage = (stats > threshold).sum() / total_games * 100 if total_games > 0 else 0
                 below_threshold_percentage = (stats < threshold).sum() / total_games * 100 if total_games > 0 else 0
                 st.markdown(f"- **Percentage Above {threshold:.2f} {selected_stat}:** <span style='color:green; font-weight:bold;'>{above_threshold_percentage:.2f}%</span>", unsafe_allow_html=True)
