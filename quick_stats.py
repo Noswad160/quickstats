@@ -59,7 +59,10 @@ def fetch_player_data():
                         'id': player['PERSON_ID'],
                         'team_name': standardized_team_name
                     }
-            st.session_state['player_team_map'] = player_team_map
+            if player_team_map:
+                st.session_state['player_team_map'] = player_team_map
+            else:
+                st.warning("No player data was retrieved. Please check the API response.")
             break
         except RequestException as e:
             st.warning(f"Network error: {str(e)}. Retrying...")
@@ -161,7 +164,7 @@ st.title("NBA Player Stats Viewer")
 selected_team = st.selectbox("Select Team:", sorted(team_dict.values()))
 standardized_team_name = selected_team.lower()
 filtered_players = [
-    player for player, info in st.session_state['player_team_map'].items()
+    player for player, info in st.session_state.get('player_team_map', {}).items()
     if info['team_name'] == standardized_team_name
 ]
 
