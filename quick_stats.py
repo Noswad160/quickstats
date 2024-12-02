@@ -6,6 +6,21 @@ import numpy as np
 import collections
 from requests.exceptions import RequestException
 
+import requests
+
+# Check NBA API status
+def check_api_status():
+    try:
+        response = requests.get("https://stats.nba.com")
+        if response.status_code == 200:
+            st.success("NBA API is reachable and operational.")
+        else:
+            st.error(f"NBA API returned status code: {response.status_code}. It might be down or inaccessible.")
+    except RequestException as e:
+        st.error(f"Failed to reach NBA API: {str(e)}")
+
+check_api_status()
+
 # Get all NBA teams
 nba_teams = teams.get_teams()
 team_dict = {team['full_name'].lower(): team['full_name'] for team in nba_teams}
