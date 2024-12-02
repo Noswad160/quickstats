@@ -53,11 +53,10 @@ def fetch_player_data():
             for _, player in nba_players.iterrows():
                 team_name = player['TEAM_NAME']
                 if team_name:
-                    # Standardize team names consistently
-                    standardized_team_name = team_name.lower()
+                    # Use team name as provided by the API
                     player_team_map[player['DISPLAY_FIRST_LAST']] = {
                         'id': player['PERSON_ID'],
-                        'team_name': standardized_team_name
+                        'team_name': team_name.lower()
                     }
             if player_team_map:
                 st.session_state['player_team_map'] = player_team_map
@@ -163,17 +162,13 @@ st.title("NBA Player Stats Viewer")
 # Team selection
 selected_team = st.selectbox("Select Team:", sorted(team_dict.values()))
 # Map the selected team to its standardized name using aliases if available
-standardized_team_name = team_aliases.get(selected_team.lower(), selected_team.lower())
+standardized_team_name = selected_team.lower()
 
 # Filter players by selected team
 filtered_players = [
     player for player, info in st.session_state.get('player_team_map', {}).items()
     if info['team_name'] == standardized_team_name
 ]
-
-# Debugging: Display the selected team and number of players found
-st.write(f"Selected team: {selected_team} (standardized: {standardized_team_name})")
-st.write(f"Number of players found: {len(filtered_players)}")
 
 # Check if there are no players for the selected team
 if not filtered_players:
