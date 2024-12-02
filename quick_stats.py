@@ -144,7 +144,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             st.markdown(f"- **Suggested Fair Line:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
 
             # Plot the chart for the last five games for the selected stat
-            last_five_games = stats.head(5)[::-1]  # Get the last 5 games and reverse for chronological order
+            last_five_games = stats.iloc[:5][::-1]  # Get the last 5 games and reverse for chronological order
             fig, ax = plt.subplots()
             ax.plot(last_five_games.index, last_five_games, marker='o', linestyle='-', linewidth=2)
             ax.set_title(f"Last 5 Games - {selected_stat} for {selected_player}")
