@@ -153,14 +153,6 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
-# Function to display best player props for the selected team on the current day
-def display_best_player_props(selected_team):
-    # Placeholder for actual logic to retrieve player props
-    st.markdown(f"### Best Player Props for {selected_team} on {datetime.date.today()}:")
-    st.markdown("- **Player 1**: Over 25.5 Points")
-    st.markdown("- **Player 2**: Over 7.5 Rebounds")
-    st.markdown("- **Player 3**: Over 5.5 Assists")
-
 # Streamlit application
 st.title("NBA Player Stats Viewer")
 
@@ -184,7 +176,3 @@ threshold = st.number_input("Enter Threshold (optional):", min_value=0.0, step=1
 # Display player stats
 if selected_player and selected_player != "No players available" and st.button("Display Player Stats"):
     display_player_stats(selected_player, selected_stat, threshold)
-
-# Display best player props for the selected team
-if st.button("Show Best Player Props for Today"):
-    display_best_player_props(selected_team)
