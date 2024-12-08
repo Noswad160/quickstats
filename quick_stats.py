@@ -4,6 +4,7 @@ from nba_api.stats.endpoints import commonallplayers, playergamelog
 import pandas as pd
 import numpy as np
 import collections
+import random
 from requests.exceptions import RequestException
 
 # Get all NBA teams
@@ -74,7 +75,7 @@ def fetch_player_data():
         return
 
 # Proper handling for game log retrieval for a player's entire career
-def display_player_stats(selected_player, selected_stat, threshold=None):
+def display_player_stats(selected_player, selected_stat, threshold=None, simulations=10000):
     player_info = st.session_state['player_team_map'].get(selected_player, None)
     if player_info:
         player_id = player_info['id']
@@ -82,6 +83,9 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             with st.spinner('Fetching player game logs...'):
                 # Retrieve player's entire career game log
                 gamelog_df = playergamelog.PlayerGameLog(player_id=player_id).get_data_frames()[0]
+
+            # Ensure the game log is sorted chronologically
+            gamelog_df = gamelog_df.sort_values(by="GAME_DATE", ascending=True)
 
             # Check if the gamelog is empty
             if gamelog_df.empty:
@@ -103,48 +107,37 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
                 st.warning("Please select a valid statistic type.")
                 return
 
-            # Calculate statistics
+            # Handle single or combined stats correctly
             if isinstance(stat_columns, list):
+                # Sum combined stats across columns
                 stats = gamelog_df[stat_columns].fillna(0).sum(axis=1)
             else:
+                # Directly use single stat column
                 stats = gamelog_df[stat_columns].fillna(0)
 
             if stats.empty:
                 st.warning(f"No data available for {selected_stat.lower()} for the selected player.")
                 return
 
+            # Monte Carlo Simulation for Fair Line
+            simulated_outcomes = [random.choice(stats) for _ in range(simulations)]
+            fair_line = np.mean(simulated_outcomes)
+
+            # Calculate metrics
             avg_stat = np.mean(stats)
             median_stat = np.median(stats)
             high_ceiling = np.max(stats)
             low_ceiling = np.min(stats)
             most_common_stat = collections.Counter(stats).most_common(1)[0][0] if len(stats) > 0 else None
-            avg_range = (avg_stat * 0.9, avg_stat * 1.1)
-            median_range = (median_stat * 0.9, median_stat * 1.1)
-
-            total_games = len(stats)
-            high_ceiling_percentage = (stats == high_ceiling).sum() / total_games * 100 if total_games > 0 else 0
-            low_ceiling_percentage = (stats == low_ceiling).sum() / total_games * 100 if total_games > 0 else 0
-            most_common_percentage = (stats == most_common_stat).sum() / total_games * 100 if total_games > 0 else 0
-            avg_stat_percentage = ((stats >= avg_range[0]) & (stats <= avg_range[1])).sum() / total_games * 100 if total_games > 0 else 0
-            median_stat_percentage = ((stats >= median_range[0]) & (stats <= median_range[1])).sum() / total_games * 100 if total_games > 0 else 0
 
             # Display statistics
-            st.markdown(f"### Stats for {selected_player} ({selected_stat}, Entire Career):")
-            st.markdown(f"- **Average {selected_stat}:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span> ({avg_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
-            st.markdown(f"- **Median {selected_stat}:** <span style='color:green; font-weight:bold;'>{median_stat:.2f}</span> ({median_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
-            st.markdown(f"- **High Ceiling {selected_stat}:** <span style='color:green; font-weight:bold;'>{high_ceiling}</span> ({high_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
-            st.markdown(f"- **Low Ceiling {selected_stat}:** <span style='color:green; font-weight:bold;'>{low_ceiling}</span> ({low_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
-            st.markdown(f"- **Most Common {selected_stat}:** <span style='color:green; font-weight:bold;'>{most_common_stat}</span> (Achieved {most_common_percentage:.2f}% of games)", unsafe_allow_html=True)
-
-            # Calculate percentage above and below the threshold if provided
-            if threshold is not None and threshold > 0:
-                above_threshold_percentage = (stats > threshold).sum() / total_games * 100 if total_games > 0 else 0
-                below_threshold_percentage = (stats < threshold).sum() / total_games * 100 if total_games > 0 else 0
-                st.markdown(f"- **Percentage Above {threshold:.2f} {selected_stat}:** <span style='color:green; font-weight:bold;'>{above_threshold_percentage:.2f}%</span>", unsafe_allow_html=True)
-                st.markdown(f"- **Percentage Below {threshold:.2f} {selected_stat}:** <span style='color:green; font-weight:bold;'>{below_threshold_percentage:.2f}%</span>", unsafe_allow_html=True)
-
-            # Add suggested fair line at the end
-            st.markdown(f"- **Suggested Fair Line:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
+            st.markdown(f"### Stats for {selected_player} ({selected_stat}):")
+            st.markdown(f"- **Average {selected_stat}:** {avg_stat:.2f}")
+            st.markdown(f"- **Median {selected_stat}:** {median_stat:.2f}")
+            st.markdown(f"- **High Ceiling {selected_stat}:** {high_ceiling}")
+            st.markdown(f"- **Low Ceiling {selected_stat}:** {low_ceiling}")
+            st.markdown(f"- **Most Common {selected_stat}:** {most_common_stat}")
+            st.markdown(f"- **Suggested Fair Line (Monte Carlo):** <span style='color:green; font-weight:bold;'>{fair_line:.2f}</span>", unsafe_allow_html=True)
 
         except IndexError:
             st.warning(f"No game data available for {selected_player}.")
