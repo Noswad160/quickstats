@@ -83,10 +83,6 @@ def display_player_stats(selected_player, selected_stat, threshold=None, recent_
                 # Retrieve player's entire career game log
                 gamelog_df = playergamelog.PlayerGameLog(player_id=player_id).get_data_frames()[0]
 
-            # Debugging: Display raw data to ensure correctness
-            st.write("Raw Game Log Data:")
-            st.write(gamelog_df.head())
-
             # Ensure the game log is sorted chronologically
             gamelog_df = gamelog_df.sort_values(by="GAME_DATE", ascending=True)
 
@@ -110,15 +106,13 @@ def display_player_stats(selected_player, selected_stat, threshold=None, recent_
                 st.warning("Please select a valid statistic type.")
                 return
 
-            # Calculate statistics
+            # Handle single or combined stats correctly
             if isinstance(stat_columns, list):
+                # Sum combined stats across columns
                 stats = gamelog_df[stat_columns].fillna(0).sum(axis=1)
             else:
+                # Directly use single stat column
                 stats = gamelog_df[stat_columns].fillna(0)
-
-            if stats.empty:
-                st.warning(f"No data available for {selected_stat.lower()} for the selected player.")
-                return
 
             # Apply recent games filter if specified
             if recent_games is not None:
@@ -128,6 +122,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None, recent_
             st.write(f"Filtered stats for last {recent_games} games:")
             st.write(stats)
 
+            # Calculate metrics
             avg_stat = np.mean(stats)
             median_stat = np.median(stats)
             high_ceiling = np.max(stats)
