@@ -74,7 +74,7 @@ def fetch_player_data():
         return
 
 # Proper handling for game log retrieval for a player's entire career
-def display_player_stats(selected_player, selected_stat, threshold=None):
+def display_player_stats(selected_player, selected_stat, threshold=None, recent_games=None):
     player_info = st.session_state['player_team_map'].get(selected_player, None)
     if player_info:
         player_id = player_info['id']
@@ -113,6 +113,10 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
                 st.warning(f"No data available for {selected_stat.lower()} for the selected player.")
                 return
 
+            # Apply recent games filter if specified
+            if recent_games is not None:
+                stats = stats[-recent_games:]
+
             avg_stat = np.mean(stats)
             median_stat = np.median(stats)
             high_ceiling = np.max(stats)
@@ -129,7 +133,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None):
             median_stat_percentage = ((stats >= median_range[0]) & (stats <= median_range[1])).sum() / total_games * 100 if total_games > 0 else 0
 
             # Display statistics
-            st.markdown(f"### Stats for {selected_player} ({selected_stat}, Entire Career):")
+            st.markdown(f"### Stats for {selected_player} ({selected_stat}, Recent Games: {recent_games}):" if recent_games else f"### Stats for {selected_player} ({selected_stat}, Entire Career):")
             st.markdown(f"- **Average {selected_stat}:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span> ({avg_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **Median {selected_stat}:** <span style='color:green; font-weight:bold;'>{median_stat:.2f}</span> ({median_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
             st.markdown(f"- **High Ceiling {selected_stat}:** <span style='color:green; font-weight:bold;'>{high_ceiling}</span> ({high_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
@@ -170,8 +174,9 @@ if filtered_players:
     selected_player = st.selectbox("Select Player:", sorted(filtered_players))
     selected_stat = st.selectbox("Select Statistic:", ["Points", "Rebounds", "Assists", "P + R", "P + A", "R + A", "P + R + A"])
     threshold = st.number_input("Enter Threshold (optional):", min_value=0.0, step=1.0)
+    recent_games = st.slider("Number of Recent Games (optional):", min_value=1, max_value=50, value=10)
 
     if selected_player and st.button("Display Player Stats"):
-        display_player_stats(selected_player, selected_stat, threshold)
+        display_player_stats(selected_player, selected_stat, threshold, recent_games)
 else:
     st.warning("No players available for the selected team. Please choose a different team.")
