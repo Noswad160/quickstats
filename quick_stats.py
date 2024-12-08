@@ -74,7 +74,7 @@ def fetch_player_data():
         return
 
 # Proper handling for game log retrieval for a player's entire career
-def display_player_stats(selected_player, selected_stat, threshold=None, recent_games=None):
+def display_player_stats(selected_player, selected_stat, threshold=None):
     player_info = st.session_state['player_team_map'].get(selected_player, None)
     if player_info:
         player_id = player_info['id']
@@ -113,24 +113,38 @@ def display_player_stats(selected_player, selected_stat, threshold=None, recent_
                 st.warning(f"No data available for {selected_stat.lower()} for the selected player.")
                 return
 
-            # Apply recent games filter if specified
-            if recent_games:
-                stats = stats[-recent_games:]
-
-            # Calculate statistics
             avg_stat = np.mean(stats)
             median_stat = np.median(stats)
             high_ceiling = np.max(stats)
             low_ceiling = np.min(stats)
             most_common_stat = collections.Counter(stats).most_common(1)[0][0] if len(stats) > 0 else None
+            avg_range = (avg_stat * 0.9, avg_stat * 1.1)
+            median_range = (median_stat * 0.9, median_stat * 1.1)
+
+            total_games = len(stats)
+            high_ceiling_percentage = (stats == high_ceiling).sum() / total_games * 100 if total_games > 0 else 0
+            low_ceiling_percentage = (stats == low_ceiling).sum() / total_games * 100 if total_games > 0 else 0
+            most_common_percentage = (stats == most_common_stat).sum() / total_games * 100 if total_games > 0 else 0
+            avg_stat_percentage = ((stats >= avg_range[0]) & (stats <= avg_range[1])).sum() / total_games * 100 if total_games > 0 else 0
+            median_stat_percentage = ((stats >= median_range[0]) & (stats <= median_range[1])).sum() / total_games * 100 if total_games > 0 else 0
 
             # Display statistics
-            st.markdown(f"### Stats for {selected_player} ({selected_stat}, Last {recent_games} Games):")
-            st.markdown(f"- **Average {selected_stat} (Fair Line):** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
-            st.markdown(f"- **Median {selected_stat}:** {median_stat:.2f}")
-            st.markdown(f"- **High Ceiling {selected_stat}:** {high_ceiling}")
-            st.markdown(f"- **Low Ceiling {selected_stat}:** {low_ceiling}")
-            st.markdown(f"- **Most Common {selected_stat}:** {most_common_stat}")
+            st.markdown(f"### Stats for {selected_player} ({selected_stat}, Entire Career):")
+            st.markdown(f"- **Average {selected_stat}:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span> ({avg_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
+            st.markdown(f"- **Median {selected_stat}:** <span style='color:green; font-weight:bold;'>{median_stat:.2f}</span> ({median_stat_percentage:.2f}% impact)", unsafe_allow_html=True)
+            st.markdown(f"- **High Ceiling {selected_stat}:** <span style='color:green; font-weight:bold;'>{high_ceiling}</span> ({high_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
+            st.markdown(f"- **Low Ceiling {selected_stat}:** <span style='color:green; font-weight:bold;'>{low_ceiling}</span> ({low_ceiling_percentage:.2f}% impact)", unsafe_allow_html=True)
+            st.markdown(f"- **Most Common {selected_stat}:** <span style='color:green; font-weight:bold;'>{most_common_stat}</span> (Achieved {most_common_percentage:.2f}% of games)", unsafe_allow_html=True)
+
+            # Calculate percentage above and below the threshold if provided
+            if threshold is not None and threshold > 0:
+                above_threshold_percentage = (stats > threshold).sum() / total_games * 100 if total_games > 0 else 0
+                below_threshold_percentage = (stats < threshold).sum() / total_games * 100 if total_games > 0 else 0
+                st.markdown(f"- **Percentage Above {threshold:.2f} {selected_stat}:** <span style='color:green; font-weight:bold;'>{above_threshold_percentage:.2f}%</span>", unsafe_allow_html=True)
+                st.markdown(f"- **Percentage Below {threshold:.2f} {selected_stat}:** <span style='color:green; font-weight:bold;'>{below_threshold_percentage:.2f}%</span>", unsafe_allow_html=True)
+
+            # Add suggested fair line at the end
+            st.markdown(f"- **Suggested Fair Line:** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
 
         except IndexError:
             st.warning(f"No game data available for {selected_player}.")
@@ -156,9 +170,8 @@ if filtered_players:
     selected_player = st.selectbox("Select Player:", sorted(filtered_players))
     selected_stat = st.selectbox("Select Statistic:", ["Points", "Rebounds", "Assists", "P + R", "P + A", "R + A", "P + R + A"])
     threshold = st.number_input("Enter Threshold (optional):", min_value=0.0, step=1.0)
-    recent_games = st.slider("Number of Recent Games (optional):", min_value=1, max_value=50, value=10)
 
     if selected_player and st.button("Display Player Stats"):
-        display_player_stats(selected_player, selected_stat, threshold, recent_games)
+        display_player_stats(selected_player, selected_stat, threshold)
 else:
     st.warning("No players available for the selected team. Please choose a different team.")
