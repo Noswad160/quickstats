@@ -74,7 +74,7 @@ def fetch_player_data():
         return
 
 # Proper handling for game log retrieval for a player's entire career
-def display_player_stats(selected_player, selected_stat, threshold=None, recent_games=10):
+def display_player_stats(selected_player, selected_stat, threshold=None, recent_games=None):
     player_info = st.session_state['player_team_map'].get(selected_player, None)
     if player_info:
         player_id = player_info['id']
@@ -113,15 +113,24 @@ def display_player_stats(selected_player, selected_stat, threshold=None, recent_
                 st.warning(f"No data available for {selected_stat.lower()} for the selected player.")
                 return
 
-            # Use the most recent N games (or all if fewer than N games exist)
-            recent_stats = stats[-recent_games:] if len(stats) >= recent_games else stats
+            # Apply recent games filter if specified
+            if recent_games:
+                stats = stats[-recent_games:]
 
-            # Updated Fair Line Calculation (recent games)
-            avg_stat = np.mean(recent_stats)
+            # Calculate statistics
+            avg_stat = np.mean(stats)
+            median_stat = np.median(stats)
+            high_ceiling = np.max(stats)
+            low_ceiling = np.min(stats)
+            most_common_stat = collections.Counter(stats).most_common(1)[0][0] if len(stats) > 0 else None
 
             # Display statistics
             st.markdown(f"### Stats for {selected_player} ({selected_stat}, Last {recent_games} Games):")
             st.markdown(f"- **Average {selected_stat} (Fair Line):** <span style='color:green; font-weight:bold;'>{avg_stat:.2f}</span>", unsafe_allow_html=True)
+            st.markdown(f"- **Median {selected_stat}:** {median_stat:.2f}")
+            st.markdown(f"- **High Ceiling {selected_stat}:** {high_ceiling}")
+            st.markdown(f"- **Low Ceiling {selected_stat}:** {low_ceiling}")
+            st.markdown(f"- **Most Common {selected_stat}:** {most_common_stat}")
 
         except IndexError:
             st.warning(f"No game data available for {selected_player}.")
@@ -147,7 +156,7 @@ if filtered_players:
     selected_player = st.selectbox("Select Player:", sorted(filtered_players))
     selected_stat = st.selectbox("Select Statistic:", ["Points", "Rebounds", "Assists", "P + R", "P + A", "R + A", "P + R + A"])
     threshold = st.number_input("Enter Threshold (optional):", min_value=0.0, step=1.0)
-    recent_games = st.slider("Number of Recent Games:", min_value=1, max_value=50, value=10)
+    recent_games = st.slider("Number of Recent Games (optional):", min_value=1, max_value=50, value=10)
 
     if selected_player and st.button("Display Player Stats"):
         display_player_stats(selected_player, selected_stat, threshold, recent_games)
