@@ -130,6 +130,7 @@ def display_player_stats(selected_player, selected_stat, threshold=None, simulat
             median_stat_percentage = ((stats >= median_range[0]) & (stats <= median_range[1])).sum() / total_games * 100 if total_games > 0 else 0
 
             # Monte Carlo Simulation for Fair Line
+            random.seed(42)  # Set a fixed seed for reproducibility
             simulated_outcomes = [random.choice(stats) for _ in range(simulations)]
             fair_line = np.mean(simulated_outcomes)
 
