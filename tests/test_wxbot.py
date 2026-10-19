@@ -168,3 +168,24 @@ def test_store_roundtrip_latest():
 def test_every_kalshi_series_maps_to_a_station():
     for series, key in config.KALSHI_SERIES_TO_STATION.items():
         assert config.STATIONS[key].kalshi_series == series
+
+
+# --- run files ---------------------------------------------------------------
+
+def test_runlog_roundtrip(tmp_path):
+    from wxbot import runlog
+    sink = runlog.JsonlSink(str(tmp_path), "2026-10-19T12:00:00+00:00")
+    sink.snapshots([{"ts": "2026-10-19T12:00:00+00:00", "venue": "kalshi", "market_id": "M1",
+                     "station": "NYC", "target_date": "2026-10-20", "unit": "F", "lo": 70, "hi": 71,
+                     "yes_bid": 0.1, "yes_ask": 0.14, "raw": {"big": "payload"}}])
+    sink.forecasts("NYC", "gfs025", {"2026-10-20": [70.123, 71.0]})
+    sink.observation("NYC", "2026-10-18", 68, "nws_cli")
+    assert sink.close().endswith("runs/2026/10/19/120000.jsonl.gz")
+
+    conn = store.connect(":memory:")
+    assert runlog.load(conn, str(tmp_path)) == 1
+    assert runlog.load(conn, str(tmp_path)) == 0  # incremental
+    snap = store.latest_snapshots(conn)[0]
+    assert snap["yes_ask"] == 0.14 and snap["raw"] is None
+    assert store.latest_members(conn, "NYC", "2026-10-20") == [70.12, 71.0]
+    assert conn.execute("SELECT tmax_f FROM observations").fetchone()[0] == 68

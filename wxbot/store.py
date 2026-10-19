@@ -99,12 +99,11 @@ def upsert_observation(conn: sqlite3.Connection, station: str, obs_date: str, tm
 def latest_snapshots(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """Most recent snapshot of every market that maps to a station and date."""
     return conn.execute("""
-        SELECT s.* FROM market_snapshots s
-        JOIN (SELECT venue, market_id, MAX(ts) AS ts FROM market_snapshots
-              WHERE station IS NOT NULL AND target_date IS NOT NULL
-              GROUP BY venue, market_id) m
-          ON s.venue = m.venue AND s.market_id = m.market_id AND s.ts = m.ts
-        ORDER BY s.station, s.target_date, s.lo
+        SELECT * FROM (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY venue, market_id ORDER BY ts DESC, rowid DESC) AS rn
+            FROM market_snapshots WHERE station IS NOT NULL AND target_date IS NOT NULL)
+        WHERE rn = 1
+        ORDER BY station, target_date, lo
     """).fetchall()
 
 

@@ -19,6 +19,11 @@ pip install -r requirements.txt
 pytest -q
 ```
 
+## Running on GitHub Actions (default)
+`.github/workflows/collect.yml` runs `collect` every 15 min and `observe` daily on
+GitHub runners, committing gzipped run files plus `REPORT.md` to the `data` branch.
+To analyse locally: `git clone -b data <repo> wxdata && python -m wxbot load wxdata && python -m wxbot edges`.
+
 ## Usage
 ```bash
 python -m wxbot collect               # one snapshot of markets + forecasts

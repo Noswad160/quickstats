@@ -1,0 +1,67 @@
+name: collect
+
+# Runs the collector on GitHub's runners and commits each run's data to the `data` branch.
+on:
+  schedule:
+    - cron: "*/15 * * * *"   # markets every 15 min (GitHub may delay scheduled runs)
+    - cron: "40 15 * * *"    # observed highs, after morning NWS climate reports
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "collect or observe"
+        default: collect
+
+permissions:
+  contents: write
+
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Check out data branch
+        run: |
+          if git ls-remote --exit-code --heads origin data >/dev/null; then
+            git clone --quiet --depth 1 --branch data \
+              "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" databranch
+          else
+            mkdir databranch && cd databranch && git init -q -b data && \
+              git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          fi
+
+      - name: Run
+        env:
+          TASK: ${{ github.event.schedule == '40 15 * * *' && 'observe' || inputs.task || 'collect' }}
+        run: |
+          echo "task: $TASK"
+          if [ "$TASK" = observe ]; then
+            python -m wxbot observe --out-dir databranch
+          else
+            python -m wxbot collect --out-dir databranch --forecast-every 170
+          fi
+          python -m wxbot --db /tmp/report.sqlite load databranch --since-days 4
+          python -m wxbot --db /tmp/report.sqlite edges --report databranch/REPORT.md
+
+      - name: Commit data
+        working-directory: databranch
+        run: |
+          git config user.name "wxbot"
+          git config user.email "wxbot@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -q -m "data $(date -u +%FT%TZ)"
+          for i in 1 2 3 4; do git push -q origin data && exit 0; sleep $((2**i)); git pull -q --rebase origin data || true; done
+          exit 1
