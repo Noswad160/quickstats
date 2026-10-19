@@ -107,13 +107,24 @@ def latest_snapshots(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """).fetchall()
 
 
-def latest_members(conn: sqlite3.Connection, station: str, target_date: str) -> list[float]:
+def latest_members(conn: sqlite3.Connection, station: str, target_date: str,
+                   exclude: tuple[str, ...] = ("nws",)) -> list[float]:
     """Ensemble members from the latest fetch of each model for a station/date."""
+    return [t for model, members in latest_forecasts(conn, station, target_date).items()
+            if model not in exclude for t in members]
+
+
+def latest_forecasts(conn: sqlite3.Connection, station: str, target_date: str) -> dict[str, list[float]]:
+    """{model: members} from the latest fetch of each model for a station/date."""
     rows = conn.execute("""
-        SELECT f.tmax_f FROM forecasts f
+        SELECT f.model, f.tmax_f FROM forecasts f
         JOIN (SELECT model, MAX(ts) AS ts FROM forecasts
               WHERE station = ? AND target_date = ? GROUP BY model) m
           ON f.model = m.model AND f.ts = m.ts
         WHERE f.station = ? AND f.target_date = ?
+        ORDER BY f.model, f.member
     """, (station, target_date, station, target_date)).fetchall()
-    return [r["tmax_f"] for r in rows]
+    out: dict[str, list[float]] = {}
+    for r in rows:
+        out.setdefault(r["model"], []).append(r["tmax_f"])
+    return out

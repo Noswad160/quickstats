@@ -11,7 +11,7 @@ import argparse
 import logging
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from . import config, kalshi, nws, polymarket, pricing, runlog, store, weather
 
@@ -71,6 +71,13 @@ def collect_once(args) -> int:
                 except Exception:
                     failures += 1
                     log.exception("forecast %s %s failed", st.key, model)
+            try:
+                highs = nws.fetch_forecast_highs(st)
+                sink.forecasts(st.key, "nws", {d: [v] for d, v in highs.items()})
+                log.info("forecast %s nws: %d days", st.key, len(highs))
+            except Exception:
+                failures += 1
+                log.exception("forecast %s nws failed", st.key)
         if ok and args.out_dir:
             runlog.write_state(args.out_dir, {**runlog.read_state(args.out_dir), "last_forecast_ts": ts})
     else:
@@ -112,22 +119,33 @@ def cmd_load(args) -> int:
 
 
 def find_edges(conn, min_edge: float, sigma: float) -> list[tuple]:
+    """Best side per market whose edge clears `min_edge`.
+
+    Only markets for future climate days are priced: once a day has started, the
+    temperatures already observed matter and the forecast alone is misleading.
+    Ensembles are recentred on the NWS forecast high; markets without one are skipped.
+    """
     fees = {"kalshi": kalshi.taker_fee, "polymarket": lambda p: 0.0}
+    now = datetime.now(timezone.utc)
     rows = []
     for s in store.latest_snapshots(conn):
-        if s["close_time"] and s["close_time"] < store.utcnow():
+        st = config.STATIONS[s["station"]]
+        today_lst = (now + timedelta(hours=st.lst_offset)).date().isoformat()
+        if s["target_date"] <= today_lst or (s["lo"] is None and s["hi"] is None):
             continue
-        members = store.latest_members(conn, s["station"], s["target_date"])
-        if not members or (s["lo"] is None and s["hi"] is None):
+        fc = store.latest_forecasts(conn, s["station"], s["target_date"])
+        nws_high = (fc.pop("nws", None) or [None])[0]
+        members = [t for m in fc.values() for t in m]
+        if not members or nws_high is None:
             continue
-        p = pricing.bucket_probability(members, s["lo"], s["hi"], sigma=sigma)
+        p = pricing.bucket_probability(pricing.recenter(members, nws_high), s["lo"], s["hi"], sigma=sigma)
         sides = {k: v for k, v in pricing.edges(p, s["yes_bid"], s["yes_ask"], fees[s["venue"]]).items()
                  if v is not None}
         if not sides:
             continue
         side, edge = max(sides.items(), key=lambda kv: kv[1])
         if edge >= min_edge:
-            rows.append((edge, side, p, s, len(members)))
+            rows.append((edge, side, p, s, nws_high, len(members)))
     return sorted(rows, key=lambda r: -r[0])
 
 
@@ -147,10 +165,10 @@ def _bucket(s):
 def cmd_edges(args) -> int:
     conn = store.connect(args.db)
     rows = find_edges(conn, args.min_edge, args.sigma)
-    header = ["venue", "station", "date", "bucket °F", "model p", "bid", "ask", "best side", "edge", "members",
+    header = ["venue", "station", "date", "bucket °F", "NWS high", "model p", "bid", "ask", "best side", "edge", "members",
               "price as of"]
-    table = [[s["venue"], s["station"], s["target_date"], _bucket(s), f"{p:.2f}", _fmt(s["yes_bid"]),
-              _fmt(s["yes_ask"]), side, f"{edge:+.2f}", str(n), s["ts"]] for edge, side, p, s, n in rows]
+    table = [[s["venue"], s["station"], s["target_date"], _bucket(s), f"{hi:.1f}", f"{p:.2f}", _fmt(s["yes_bid"]),
+              _fmt(s["yes_ask"]), side, f"{edge:+.2f}", str(n), s["ts"]] for edge, side, p, s, hi, n in rows]
 
     if args.report:
         counts = conn.execute("""SELECT

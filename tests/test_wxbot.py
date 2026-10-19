@@ -189,3 +189,36 @@ def test_runlog_roundtrip(tmp_path):
     assert snap["yes_ask"] == 0.14 and snap["raw"] is None
     assert store.latest_members(conn, "NYC", "2026-10-20") == [70.12, 71.0]
     assert conn.execute("SELECT tmax_f FROM observations").fetchone()[0] == 68
+
+
+def test_recenter_keeps_spread():
+    out = pricing.recenter([60.0, 62.0, 64.0], 66.0)
+    assert out == [64.0, 66.0, 68.0]
+    assert pricing.recenter([60.0], None) == [60.0]
+
+
+def test_nws_forecast_highs():
+    grid = {"properties": {"maxTemperature": {"uom": "wmoUnit:degC", "values": [
+        {"validTime": "2026-10-19T12:00:00+00:00/PT13H", "value": 20.0},
+        {"validTime": "2026-10-20T12:00:00+00:00/PT13H", "value": None},
+    ]}}}
+    assert nws.forecast_highs(grid, -5) == {"2026-10-19": 68.0}
+
+
+def test_find_edges_skips_today_and_requires_nws():
+    from datetime import datetime, timedelta, timezone
+    from wxbot.__main__ import find_edges
+    conn = store.connect(":memory:")
+    today = (datetime.now(timezone.utc) - timedelta(hours=5)).date()
+    tomorrow = (today + timedelta(days=1)).isoformat()
+    rows = [{"ts": "t", "venue": "kalshi", "market_id": f"M{d}", "station": "NYC", "target_date": d,
+             "unit": "F", "lo": 70, "hi": 71, "yes_bid": 0.01, "yes_ask": 0.02}
+            for d in (today.isoformat(), tomorrow)]
+    store.insert_snapshots(conn, rows)
+    for d in (today.isoformat(), tomorrow):
+        store.insert_forecasts(conn, "t", "NYC", "gfs025", {d: [60.0, 62.0]})
+    assert find_edges(conn, 0.0, 2.0) == []          # no NWS high yet
+    store.insert_forecasts(conn, "t", "NYC", "nws", {tomorrow: [70.5]})
+    found = find_edges(conn, 0.0, 2.0)
+    assert [r[3]["target_date"] for r in found] == [tomorrow]
+    assert found[0][1] == "buy_yes" and found[0][4] == 70.5

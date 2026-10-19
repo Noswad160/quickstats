@@ -50,7 +50,8 @@ jobs:
           if [ "$TASK" = observe ]; then
             python -m wxbot observe --out-dir databranch
           else
-            python -m wxbot collect --out-dir databranch --forecast-every 170
+            # manual runs always refresh forecasts; scheduled runs every ~3h
+            python -m wxbot collect --out-dir databranch --forecast-every ${{ github.event_name == 'workflow_dispatch' && '0' || '170' }}
           fi
           python -m wxbot --db /tmp/report.sqlite load databranch --since-days 4
           python -m wxbot --db /tmp/report.sqlite edges --report databranch/REPORT.md
