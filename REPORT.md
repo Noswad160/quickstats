@@ -2,9 +2,9 @@
 
 **Research only — the model is not yet calibrated. Do not trade on this.**
 
-Generated 2026-10-19T01:08:36+00:00 · sigma 2.0°F · min edge +0.03
+Generated 2026-10-19T01:11:13+00:00 · sigma 2.0°F · min edge +0.03
 
-Snapshots: 3035 (1437 markets) · latest prices 2026-10-19T01:08:30+00:00 · latest forecast 2026-10-19T01:08:30+00:00 · observations 47
+Snapshots: 3035 (1437 markets) · latest prices 2026-10-19T01:08:30+00:00 · latest forecast 2026-10-19T01:08:30+00:00 · observations 66
 
 | venue | station | date | bucket °F | NWS high | model p | bid | ask | best side | edge | members | price as of |
 |---|---|---|---|---|---|---|---|---|---|---|---|
