@@ -1,6 +1,6 @@
 """Observed daily highs from the NWS Daily Climate Report (CLI) -- what Kalshi settles on."""
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from . import config
 from .http import get_json
@@ -46,11 +46,32 @@ def fetch_forecast_highs(station: config.Station) -> dict[str, float]:
     return forecast_highs(get_json(point["properties"]["forecastGridData"]), station.lst_offset)
 
 
-def fetch_recent_cli(station: config.Station, limit: int = 10) -> list[str]:
-    """Texts of the latest CLI products for a station (newest first)."""
+def final_highs(products: list[tuple[str, str]], lst_offset: int) -> dict[str, int]:
+    """{date: max °F} using only reports issued after the climate day ended.
+
+    Offices also issue CLI reports during the day with the high *so far*; those are
+    ignored. If a day has several final reports (corrections), the latest wins.
+    """
+    best: dict[str, tuple[datetime, int]] = {}
+    for issued, text in products:
+        parsed = parse_cli(text)
+        if not parsed or not issued:
+            continue
+        d, tmax = parsed
+        day_end = datetime.fromisoformat(d).replace(tzinfo=timezone.utc) + timedelta(days=1, hours=-lst_offset)
+        issued_at = datetime.fromisoformat(issued.replace("Z", "+00:00"))
+        if issued_at < day_end:
+            continue
+        if d not in best or issued_at > best[d][0]:
+            best[d] = (issued_at, tmax)
+    return {d: v for d, (_, v) in best.items()}
+
+
+def fetch_recent_cli(station: config.Station, limit: int = 20) -> list[tuple[str, str]]:
+    """[(issuance time, text)] of the latest CLI products for a station (newest first)."""
     listing = get_json(f"{config.NWS_API}/products/types/CLI/locations/{station.cli_code}")
-    texts = []
+    out = []
     for item in listing.get("@graph", [])[:limit]:
         product = get_json(item["@id"])
-        texts.append(product.get("productText", ""))
-    return texts
+        out.append((product.get("issuanceTime") or item.get("issuanceTime", ""), product.get("productText", "")))
+    return out

@@ -143,6 +143,18 @@ TEMPERATURE (F)
 """
 
 
+def test_final_highs_ignores_intraday_reports():
+    partial = CLI_SAMPLE.replace("MAXIMUM         68", "MAXIMUM         55")
+    corrected = CLI_SAMPLE.replace("MAXIMUM         68", "MAXIMUM         69")
+    products = [
+        ("2026-10-19T11:30:00+00:00", corrected),  # next morning, correction
+        ("2026-10-19T06:10:00+00:00", CLI_SAMPLE),  # 01:10 EST next day: final
+        ("2026-10-18T21:30:00+00:00", partial),     # 16:30 EST same day: so-far value
+    ]
+    assert nws.final_highs(products, -5) == {"2026-10-18": 69}
+    assert nws.final_highs(products[2:], -5) == {}
+
+
 def test_parse_cli():
     assert nws.parse_cli(CLI_SAMPLE) == ("2026-10-18", 68)
     assert nws.parse_cli("nothing here") is None

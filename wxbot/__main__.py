@@ -102,10 +102,10 @@ def cmd_observe(args) -> int:
     sink, failures = _sink(args, store.utcnow()), 0
     for st in _stations_in_use():
         try:
-            for text in nws.fetch_recent_cli(st, limit=args.limit):
-                if parsed := nws.parse_cli(text):
-                    sink.observation(st.key, parsed[0], parsed[1], "nws_cli")
-                    log.info("obs %s %s: %s°F", st.key, *parsed)
+            highs = nws.final_highs(nws.fetch_recent_cli(st, limit=args.limit), st.lst_offset)
+            for d, tmax in sorted(highs.items()):
+                sink.observation(st.key, d, tmax, "nws_cli")
+                log.info("obs %s %s: %s°F", st.key, d, tmax)
         except Exception:
             failures += 1
             log.exception("observe %s failed", st.key)
@@ -239,7 +239,7 @@ def main() -> None:
 
     o = sub.add_parser("observe")
     add_output_args(o)
-    o.add_argument("--limit", type=int, default=10, help="CLI products per station")
+    o.add_argument("--limit", type=int, default=20, help="CLI products per station")
     o.set_defaults(func=cmd_observe)
 
     ld = sub.add_parser("load")
