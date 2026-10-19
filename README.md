@@ -21,7 +21,10 @@ pytest -q
 
 ## Running on GitHub Actions (default)
 `.github/workflows/collect.yml` runs `collect` every 15 min and `observe` daily on
-GitHub runners, committing gzipped run files plus `REPORT.md` to the `data` branch.
+GitHub runners, committing gzipped run files to the `data` branch along with:
+- `REPORT.md` — current model-vs-market disagreements
+- `SCORECARD.md` — model vs market log loss/Brier on settled days, NWS error per station
+- `PAPER.md` — simulated Kalshi trades and P&L (rules in `wxbot/paper.py`)
 To analyse locally: `git clone -b data <repo> wxdata && python -m wxbot load wxdata && python -m wxbot edges`.
 
 ## Usage
@@ -30,6 +33,8 @@ python -m wxbot collect               # one snapshot of markets + forecasts
 python -m wxbot collect --loop 15     # every 15 minutes (run under tmux/systemd/cron)
 python -m wxbot observe               # observed highs from NWS climate reports (for calibration)
 python -m wxbot edges --min-edge 0.03 # model vs market, best side per bucket
+python -m wxbot scorecard             # grade model vs market on settled days
+python -m wxbot paper                 # simulated Kalshi trading over all stored prices
 ```
 Data goes to `data/wxbot.sqlite` (override with `--db` or `WXBOT_DB`).
 

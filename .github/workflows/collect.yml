@@ -42,6 +42,13 @@ jobs:
               git remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
           fi
 
+      - name: Restore analysis database
+        uses: actions/cache/restore@v4
+        with:
+          path: /tmp/wxbot.sqlite
+          key: wxbot-db-${{ github.run_id }}
+          restore-keys: wxbot-db-
+
       - name: Run
         env:
           TASK: ${{ github.event.schedule == '40 15 * * *' && 'observe' || inputs.task || 'collect' }}
@@ -53,8 +60,17 @@ jobs:
             # manual runs always refresh forecasts; scheduled runs every ~3h
             python -m wxbot collect --out-dir databranch --forecast-every ${{ github.event_name == 'workflow_dispatch' && '0' || '170' }}
           fi
-          python -m wxbot --db /tmp/report.sqlite load databranch --since-days 4
-          python -m wxbot --db /tmp/report.sqlite edges --report databranch/REPORT.md
+          # incremental: only run files not already in the cached database are loaded
+          python -m wxbot --db /tmp/wxbot.sqlite load databranch
+          python -m wxbot --db /tmp/wxbot.sqlite edges --report databranch/REPORT.md
+          python -m wxbot --db /tmp/wxbot.sqlite scorecard --out databranch/SCORECARD.md
+          python -m wxbot --db /tmp/wxbot.sqlite paper --out databranch/PAPER.md
+
+      - name: Save analysis database
+        uses: actions/cache/save@v4
+        with:
+          path: /tmp/wxbot.sqlite
+          key: wxbot-db-${{ github.run_id }}
 
       - name: Commit data
         working-directory: databranch

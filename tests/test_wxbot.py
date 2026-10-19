@@ -211,14 +211,82 @@ def test_find_edges_skips_today_and_requires_nws():
     conn = store.connect(":memory:")
     today = (datetime.now(timezone.utc) - timedelta(hours=5)).date()
     tomorrow = (today + timedelta(days=1)).isoformat()
-    rows = [{"ts": "t", "venue": "kalshi", "market_id": f"M{d}", "station": "NYC", "target_date": d,
+    ts = store.utcnow()
+    rows = [{"ts": ts, "venue": "kalshi", "market_id": f"M{d}", "station": "NYC", "target_date": d,
              "unit": "F", "lo": 70, "hi": 71, "yes_bid": 0.01, "yes_ask": 0.02}
             for d in (today.isoformat(), tomorrow)]
     store.insert_snapshots(conn, rows)
     for d in (today.isoformat(), tomorrow):
-        store.insert_forecasts(conn, "t", "NYC", "gfs025", {d: [60.0, 62.0]})
+        store.insert_forecasts(conn, ts, "NYC", "gfs025", {d: [60.0, 62.0]})
     assert find_edges(conn, 0.0, 2.0) == []          # no NWS high yet
-    store.insert_forecasts(conn, "t", "NYC", "nws", {tomorrow: [70.5]})
+    store.insert_forecasts(conn, ts, "NYC", "nws", {tomorrow: [70.5]})
     found = find_edges(conn, 0.0, 2.0)
     assert [r[3]["target_date"] for r in found] == [tomorrow]
     assert found[0][1] == "buy_yes" and found[0][4] == 70.5
+
+
+# --- model / scorecard / paper ---------------------------------------------------
+
+def _seed(conn, d="2026-10-19"):
+    """NYC day `d`: forecasts fetched the evening before, a 3-bucket Kalshi book, observed 71."""
+    from wxbot import model
+    start = model.day_start_utc("NYC", d)                        # 05:00Z on d
+    before = "2026-10-18T22:00:00+00:00"
+    store.insert_forecasts(conn, before, "NYC", "gfs025", {d: [69.0, 70.0, 71.0]})
+    store.insert_forecasts(conn, before, "NYC", "nws", {d: [70.5]})
+    store.insert_forecasts(conn, "2026-10-19T12:00:00+00:00", "NYC", "nws", {d: [90.0]})  # after start
+    book = [(None, 67, 0.05, 0.06), (68, 71, 0.60, 0.62), (72, None, 0.30, 0.32)]
+    store.insert_snapshots(conn, [
+        {"ts": before, "venue": "kalshi", "market_id": f"M{i}", "event_id": "E", "station": "NYC",
+         "target_date": d, "unit": "F", "lo": lo, "hi": hi, "yes_bid": b, "yes_ask": a}
+        for i, (lo, hi, b, a) in enumerate(book)])
+    store.upsert_observation(conn, "NYC", d, 71, "nws_cli")
+    return start
+
+
+def test_model_is_point_in_time():
+    from wxbot import model
+    conn = store.connect(":memory:")
+    start = _seed(conn)
+    h = model.History(conn)
+    assert h.forecasts("NYC", "2026-10-19", start)["nws"] == [70.5]   # not the later 90.0
+    assert h.forecasts("NYC", "2026-10-19", "2026-10-18T00:00:00+00:00") == {}
+    assert h.center_errors("NYC") == [("2026-10-19", 71 - 70.5)]
+    assert h.bias("NYC", "2026-10-19") == 0.0                          # only strictly earlier days
+    assert h.bias("NYC", "2026-10-20") == pytest.approx(0.5 / 11)       # shrunk toward 0
+
+
+def test_scorecard_scores_settled_event():
+    from wxbot import model, scorecard
+    conn = store.connect(":memory:")
+    _seed(conn)
+    h = model.History(conn)
+    [s] = scorecard.score_events(conn, h, sigma=2.0)
+    assert (s.venue, s.observed, s.nws) == ("kalshi", 71, 70.5)
+    assert s.market_p == pytest.approx(0.61 / (0.055 + 0.61 + 0.31))
+    assert 0 < s.model_p < 1
+    assert "| kalshi | 1 |" in scorecard.render(conn, h, 2.0)
+
+
+def test_paper_trades_and_settles():
+    from wxbot import model, paper
+    conn = store.connect(":memory:")
+    _seed(conn)
+    h = model.History(conn)
+    ledger = paper.run(conn, h, model.Model(h, sigma=1.0))
+    assert ledger.trades, "model puts ~85% on 68-71 vs a 0.62 ask; should buy YES"
+    t = next(t for t in ledger.trades if t.market_id == "M1")
+    assert t.side == "yes" and t.price == 0.62 and t.contracts > 0
+    assert t.cost <= paper.Params().max_stake
+    assert t.pnl == pytest.approx(t.contracts - t.cost)               # 71 is in 68-71
+    assert sum(x.cost for x in ledger.trades) <= paper.Params().max_event_stake + 1e-9
+    assert "Realized P&L" in paper.render(ledger)
+
+
+def test_paper_skips_same_day():
+    from wxbot import model, paper
+    conn = store.connect(":memory:")
+    _seed(conn)
+    conn.execute("UPDATE market_snapshots SET ts = '2026-10-19T15:00:00+00:00'")
+    h = model.History(conn)
+    assert paper.run(conn, h, model.Model(h)).trades == []

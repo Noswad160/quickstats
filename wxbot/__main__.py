@@ -4,6 +4,8 @@
   python -m wxbot observe                    pull observed highs (NWS CLI) for calibration
   python -m wxbot load DIR                   import run files (from --out-dir) into SQLite
   python -m wxbot edges [--min-edge 0.03]    model probability vs current prices (no trading)
+  python -m wxbot scorecard                  grade model vs market on settled days
+  python -m wxbot paper                      simulated Kalshi trading over stored prices
 
 collect/observe write to SQLite by default, or to gzipped run files with --out-dir DIR.
 """
@@ -11,9 +13,9 @@ import argparse
 import logging
 import sys
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
-from . import config, kalshi, nws, polymarket, pricing, runlog, store, weather
+from . import config, kalshi, model, nws, paper, polymarket, pricing, runlog, scorecard, store, weather
 
 log = logging.getLogger("wxbot")
 
@@ -119,33 +121,30 @@ def cmd_load(args) -> int:
 
 
 def find_edges(conn, min_edge: float, sigma: float) -> list[tuple]:
-    """Best side per market whose edge clears `min_edge`.
+    """Best side per market whose edge clears `min_edge`, priced with the current model.
 
     Only markets for future climate days are priced: once a day has started, the
     temperatures already observed matter and the forecast alone is misleading.
-    Ensembles are recentred on the NWS forecast high; markets without one are skipped.
     """
     fees = {"kalshi": kalshi.taker_fee, "polymarket": lambda p: 0.0}
-    now = datetime.now(timezone.utc)
+    now = store.utcnow()
+    mdl = model.Model(model.History(conn), sigma=sigma)
     rows = []
     for s in store.latest_snapshots(conn):
-        st = config.STATIONS[s["station"]]
-        today_lst = (now + timedelta(hours=st.lst_offset)).date().isoformat()
-        if s["target_date"] <= today_lst or (s["lo"] is None and s["hi"] is None):
+        st, d = s["station"], s["target_date"]
+        if d <= model.lst_today(st, now) or (s["lo"] is None and s["hi"] is None):
             continue
-        fc = store.latest_forecasts(conn, s["station"], s["target_date"])
-        nws_high = (fc.pop("nws", None) or [None])[0]
-        members = [t for m in fc.values() for t in m]
-        if not members or nws_high is None:
+        m = mdl.members(st, d, now)
+        if m is None:
             continue
-        p = pricing.bucket_probability(pricing.recenter(members, nws_high), s["lo"], s["hi"], sigma=sigma)
+        p = mdl.prob(st, d, s["lo"], s["hi"], now)
         sides = {k: v for k, v in pricing.edges(p, s["yes_bid"], s["yes_ask"], fees[s["venue"]]).items()
                  if v is not None}
         if not sides:
             continue
         side, edge = max(sides.items(), key=lambda kv: kv[1])
         if edge >= min_edge:
-            rows.append((edge, side, p, s, nws_high, len(members)))
+            rows.append((edge, side, p, s, m[1], len(m[0])))
     return sorted(rows, key=lambda r: -r[0])
 
 
@@ -196,6 +195,31 @@ def cmd_edges(args) -> int:
     return 0
 
 
+def cmd_scorecard(args) -> int:
+    conn = store.connect(args.db)
+    _write(args.out, scorecard.render(conn, model.History(conn), args.sigma))
+    return 0
+
+
+def cmd_paper(args) -> int:
+    conn = store.connect(args.db)
+    history = model.History(conn)
+    ledger = paper.run(conn, history, model.Model(history, sigma=args.sigma))
+    _write(args.out, paper.render(ledger))
+    log.info("paper: %d trades, %d settled, realized $%+.2f", len(ledger.trades), len(ledger.settled),
+             ledger.realized)
+    return 0
+
+
+def _write(path: str | None, text: str) -> None:
+    if path:
+        with open(path, "w") as f:
+            f.write(text)
+        log.info("wrote %s", path)
+    else:
+        print(text)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="wxbot")
     ap.add_argument("--db", default=config.DB_PATH)
@@ -228,6 +252,16 @@ def main() -> None:
     e.add_argument("--sigma", type=float, default=config.KERNEL_SIGMA_F)
     e.add_argument("--report", help="write a markdown report to this path instead of printing")
     e.set_defaults(func=cmd_edges)
+
+    sc = sub.add_parser("scorecard", help="grade model vs market on settled days")
+    sc.add_argument("--sigma", type=float, default=config.KERNEL_SIGMA_F)
+    sc.add_argument("--out", help="write markdown here instead of printing")
+    sc.set_defaults(func=cmd_scorecard)
+
+    pp = sub.add_parser("paper", help="replay stored Kalshi prices through the paper trader")
+    pp.add_argument("--sigma", type=float, default=config.KERNEL_SIGMA_F)
+    pp.add_argument("--out", help="write markdown here instead of printing")
+    pp.set_defaults(func=cmd_paper)
 
     args = ap.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,

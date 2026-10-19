@@ -19,6 +19,7 @@ class JsonlSink:
         self.lines: list[dict] = []
 
     def snapshots(self, rows: list[dict]) -> int:
+        rows = [r for r in rows if r.get("station")]  # unmapped markets are never priced
         for r in rows:
             r = {k: v for k, v in r.items() if k != "raw"}  # keep run files small
             self.lines.append({"t": "snap", **r})
