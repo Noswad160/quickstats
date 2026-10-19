@@ -1,6 +1,2 @@
-streamlit
-pandas
-numpy
-nba_api
-requests
-matplotlib
+requests>=2.31
+pytest>=8
