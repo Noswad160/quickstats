@@ -25,6 +25,7 @@ GitHub runners, committing gzipped run files to the `data` branch along with:
 - `REPORT.md` — current model-vs-market disagreements
 - `SCORECARD.md` — model vs market log loss/Brier on settled days, NWS error per station
 - `PAPER.md` — simulated Kalshi trades and P&L (rules in `wxbot/paper.py`)
+- `dashboard/*.json` — the tables behind the dashboard (`python -m wxbot export DIR`)
 To analyse locally: `git clone -b data <repo> wxdata && python -m wxbot load wxdata && python -m wxbot edges`.
 
 ## Usage

@@ -302,3 +302,16 @@ def test_paper_skips_same_day():
     conn.execute("UPDATE market_snapshots SET ts = '2026-10-19T15:00:00+00:00'")
     h = model.History(conn)
     assert paper.run(conn, h, model.Model(h)).trades == []
+
+
+def test_export_writes_row_files(tmp_path):
+    import json
+    from wxbot import export
+    conn = store.connect(":memory:")
+    _seed(conn)
+    paths = export.export_all(conn, str(tmp_path), sigma=1.0)
+    rows = {p.rsplit("/", 1)[-1]: json.load(open(p)) for p in paths}
+    assert rows["status.json"][0]["settled_trades"] >= 1
+    assert rows["scores.json"][0]["event"] == "kalshi:NYC:2026-10-19"
+    assert rows["pnl_by_day.json"][-1]["cumulative_pnl"] == pytest.approx(rows["status.json"][0]["realized_pnl"])
+    assert all(r["status"] in ("open", "won", "lost") for r in rows["trades.json"])

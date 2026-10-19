@@ -65,6 +65,7 @@ jobs:
           python -m wxbot --db /tmp/wxbot.sqlite edges --report databranch/REPORT.md
           python -m wxbot --db /tmp/wxbot.sqlite scorecard --out databranch/SCORECARD.md
           python -m wxbot --db /tmp/wxbot.sqlite paper --out databranch/PAPER.md
+          python -m wxbot --db /tmp/wxbot.sqlite export databranch/dashboard
 
       - name: Save analysis database
         uses: actions/cache/save@v4

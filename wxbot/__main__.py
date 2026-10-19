@@ -211,6 +211,13 @@ def cmd_paper(args) -> int:
     return 0
 
 
+def cmd_export(args) -> int:
+    from . import export
+    for path in export.export_all(store.connect(args.db), args.out, args.sigma):
+        log.info("wrote %s", path)
+    return 0
+
+
 def _write(path: str | None, text: str) -> None:
     if path:
         with open(path, "w") as f:
@@ -262,6 +269,11 @@ def main() -> None:
     pp.add_argument("--sigma", type=float, default=config.KERNEL_SIGMA_F)
     pp.add_argument("--out", help="write markdown here instead of printing")
     pp.set_defaults(func=cmd_paper)
+
+    ex = sub.add_parser("export", help="write dashboard JSON files")
+    ex.add_argument("out")
+    ex.add_argument("--sigma", type=float, default=config.KERNEL_SIGMA_F)
+    ex.set_defaults(func=cmd_export)
 
     args = ap.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
