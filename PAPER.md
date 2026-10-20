@@ -10,13 +10,16 @@ Rules: min edge $0.05/contract after fees · 10% Kelly · ≤$25 per market · �
 - Settled trades: 17 (4 won) · staked $303.93
 - Realized P&L: **$-159.93** (-52.6% on stake)
 - Model expected P&L on those trades: $+218.93 (if realized is far below this over many trades, the model is overconfident)
-- Open trades: 40 · cost $438.23
+- Open trades: 43 · cost $455.70
 - Bankroll now (cash + open at cost): $840.07
 
 ## Trades (newest first)
 
 | placed | station | date | bucket °F | side | price | qty | fee | model p | observed | P&L |
 |---|---|---|---|---|---|---|---|---|---|---|
+| 2026-10-20T17:32 | NYC | 2026-10-21 | 59–60 | yes | 0.14 | 15 | 0.13 | 0.21 |  | open |
+| 2026-10-20T17:32 | DEN | 2026-10-21 | 78–79 | no | 0.71 | 9 | 0.13 | 0.78 |  | open |
+| 2026-10-20T17:32 | AUS | 2026-10-21 | 87–88 | no | 0.78 | 11 | 0.14 | 0.85 |  | open |
 | 2026-10-20T17:02 | NYC | 2026-10-21 | 63–64 | yes | 0.17 | 15 | 0.15 | 0.25 |  | open |
 | 2026-10-20T16:32 | PHL | 2026-10-21 | 67–68 | no | 0.53 | 27 | 0.48 | 0.79 |  | open |
 | 2026-10-20T16:32 | PHL | 2026-10-21 | 63–64 | yes | 0.05 | 107 | 0.36 | 0.24 |  | open |
