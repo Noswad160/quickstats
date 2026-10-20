@@ -30,14 +30,6 @@ def _sink(args, ts):
     return runlog.SqliteSink(store.connect(args.db), ts)
 
 
-def _forecasts_due(args, ts: str) -> bool:
-    if not (args.out_dir and args.forecast_every):
-        return True
-    last = runlog.read_state(args.out_dir).get("last_forecast_ts")
-    return not last or datetime.fromisoformat(ts) - datetime.fromisoformat(last) >= \
-        timedelta(minutes=args.forecast_every)
-
-
 def collect_once(args) -> int:
     """Run one collection pass; returns the number of sources that failed."""
     ts = store.utcnow()
@@ -62,7 +54,7 @@ def collect_once(args) -> int:
         failures += 1
         log.exception("polymarket failed")
 
-    if _forecasts_due(args, ts):
+    if _due(args, "last_forecast_ts", ts, args.forecast_every):
         ok = 0
         for st in _stations_in_use():
             for model in config.ENSEMBLE_MODELS:
@@ -80,8 +72,8 @@ def collect_once(args) -> int:
             except Exception:
                 failures += 1
                 log.exception("forecast %s nws failed", st.key)
-        if ok and args.out_dir:
-            runlog.write_state(args.out_dir, {**runlog.read_state(args.out_dir), "last_forecast_ts": ts})
+        if ok:
+            _mark(args, "last_forecast_ts", ts)
     else:
         log.info("forecasts not due yet")
 
@@ -98,8 +90,25 @@ def cmd_collect(args) -> int:
         time.sleep(args.loop * 60)
 
 
+def _due(args, key: str, ts: str, every: float) -> bool:
+    """With --out-dir and an interval: has `every` minutes passed since state[key]?"""
+    if not (args.out_dir and every):
+        return True
+    last = runlog.read_state(args.out_dir).get(key)
+    return not last or datetime.fromisoformat(ts) - datetime.fromisoformat(last) >= timedelta(minutes=every)
+
+
+def _mark(args, key: str, ts: str) -> None:
+    if args.out_dir:
+        runlog.write_state(args.out_dir, {**runlog.read_state(args.out_dir), key: ts})
+
+
 def cmd_observe(args) -> int:
-    sink, failures = _sink(args, store.utcnow()), 0
+    ts = store.utcnow()
+    if not _due(args, "last_observe_ts", ts, args.every):
+        log.info("observations not due yet")
+        return 0
+    sink, failures = _sink(args, ts), 0
     for st in _stations_in_use():
         try:
             highs = nws.final_highs(nws.fetch_recent_cli(st, limit=args.limit), st.lst_offset)
@@ -111,6 +120,8 @@ def cmd_observe(args) -> int:
             log.exception("observe %s failed", st.key)
     if path := sink.close():
         log.info("wrote %s", path)
+    if failures < len(_stations_in_use()):
+        _mark(args, "last_observe_ts", ts)
     return 1 if failures and args.strict else 0
 
 
@@ -247,6 +258,8 @@ def main() -> None:
     o = sub.add_parser("observe")
     add_output_args(o)
     o.add_argument("--limit", type=int, default=20, help="CLI products per station")
+    o.add_argument("--every", type=float, default=0,
+                   help="with --out-dir: skip unless the last fetch is this many minutes old")
     o.set_defaults(func=cmd_observe)
 
     ld = sub.add_parser("load")
