@@ -1,0 +1,78 @@
+name: nba
+
+# Data lives on the nba-data branch: box scores per date, injury and slate snapshots, reports.
+on:
+  schedule:
+    - cron: "7 14-23 * * *"     # hourly 9am-6pm Central: lines move and injury news lands all day
+    - cron: "37 0,1 * * *"      # and right before late tip-offs
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "picks | backfill | backtest"
+        default: picks
+      start:
+        description: "backfill/backtest start date (YYYY-MM-DD)"
+        default: "2025-10-21"
+      end:
+        description: "backfill/backtest end date (YYYY-MM-DD)"
+        default: "2026-06-30"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nba
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      - name: Check out data branch
+        run: |
+          url="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          if git ls-remote --exit-code --heads origin nba-data >/dev/null; then
+            git clone --quiet --depth 1 --branch nba-data "$url" data
+          else
+            mkdir data && cd data && git init -q -b nba-data && git remote add origin "$url"
+          fi
+          cd data && git config user.name nbaparlay && git config user.email nbaparlay@users.noreply.github.com
+
+      - name: Run
+        env:
+          TASK: ${{ inputs.task || 'picks' }}
+          START: ${{ inputs.start || '2025-10-21' }}
+          END: ${{ inputs.end || '2026-06-30' }}
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+        run: |
+          set -o pipefail
+          today=$(TZ=America/Chicago date +%F)
+          case "$TASK" in
+            backfill)
+              python -m nbaparlay --data data backfill --start "$START" --end "$END" ;;
+            backtest)
+              python -m nbaparlay --data data backtest --start "$START" --end "$END" \
+                --out data/BACKTEST.md --json data/backtest.json ;;
+            *)
+              python -m nbaparlay --data data update --date "$today"
+              bt=""; [ -f data/backtest.json ] && bt="--backtest-json data/backtest.json"
+              python -m nbaparlay --data data picks --date "$today" --out data/PICKS.md --json data/picks.json $bt ;;
+          esac
+
+      - name: Commit data
+        if: always()
+        working-directory: data
+        run: |
+          git add -A
+          git diff --cached --quiet && exit 0
+          git commit -q -m "${{ inputs.task || 'picks' }} $(date -u +%FT%TZ)"
+          for i in 1 2 3 4; do git push -q origin HEAD:nba-data && exit 0; sleep $((2**i)); git pull -q --rebase origin nba-data || true; done
+          exit 1
