@@ -11,12 +11,24 @@ def _pct(p) -> str:
 
 def slate_md(res: dict, backtest: dict | None = None) -> str:
     out = ["# NBA lines and parlays", "", f"Generated {res['as_of'][:16].replace('T', ' ')} UTC.", ""]
+    allowed = res.get("allowed", {"prop"})
     if backtest and backtest.get("games"):
-        verdict = ("beats" if backtest.get("spread_mae_model", 9e9) < backtest.get("spread_mae_close", 0)
-                   else "does not beat")
-        out += [f"**Backtest: over {backtest['games']} past games the model {verdict} DraftKings' closing spread** "
-                f"(off by {backtest.get('spread_mae_model', 0):.2f} points per game vs the close's "
-                f"{backtest.get('spread_mae_close', 0):.2f}). Treat the picks below accordingly.", ""]
+        out += [f"**Backtest, {backtest['games']} games of 2025-26:** the model misses the final margin by "
+                f"{backtest.get('spread_mae_model', 0):.2f} points a game vs {backtest.get('spread_mae_close', 0):.2f} "
+                f"for DraftKings' closing spread, and the total by {backtest.get('total_mae_model', 0):.2f} vs "
+                f"{backtest.get('total_mae_close', 0):.2f}.", ""]
+    game_off = [m for m in ("spread", "total") if m not in allowed]
+    if game_off:
+        out += [f"**No {' or '.join(game_off)} bets are recommended:** the backtest doesn't show the model beating "
+                "the closing line there, so any edge it shows on those is more likely the model's error than the book's. "
+                "My lines for every game are below for reference.", ""]
+    if not res.get("props_priced"):
+        out += ["**Player props aren't being priced yet.** Add an Odds API key (repository secret `ODDS_API_KEY`) "
+                "and every prop line from the major books gets compared with my lines below.", ""]
+    else:
+        out += ["Prop edges are **unproven**: there's no free history of prop prices to backtest against. The "
+                "projections behind them beat a last-10-game average in the backtest and are calibrated "
+                "(outcomes land over my line about half the time).", ""]
     out += ["Every number here is the model's own line, set before comparing with any book. "
             "Edge = expected profit per $1 at the book's price if the model is right.", ""]
 

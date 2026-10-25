@@ -38,9 +38,12 @@ class Parlay:
 
 
 def _key(p: Priced) -> tuple:
+    """Legs with the same key can't go in one parlay: they're the same bet, or nearly so."""
     leg = p.leg
     if leg.market == "prop":
         return ("prop", leg.player_id, leg.stat)
+    if leg.market in ("spread", "moneyline"):
+        return ("result", leg.game_id)          # a team's spread and moneyline are close to one bet
     return (leg.market, leg.game_id, leg.team_side)
 
 
@@ -66,7 +69,10 @@ def build(legs: list[Priced], sims: dict[str, GameSim], max_legs: int = 4, pool:
     for k in range(2, max_legs + 1):
         for combo in combinations(pool_legs, k):
             games = [p.leg.game_id for p in combo]
-            if max(games.count(g) for g in set(games)) > max_per_game:
+            n_games = len(set(games))
+            if n_games not in (1, k):
+                continue  # either all different games (book pays the product) or one game (an SGP)
+            if n_games == 1 and k > max_per_game:
                 continue
             if len({_key(p) for p in combo}) < k:
                 continue
@@ -78,7 +84,7 @@ def build(legs: list[Priced], sims: dict[str, GameSim], max_legs: int = 4, pool:
                 any_win |= o == WIN
             alive = payout > 0
             p_hit = float(np.mean(alive & any_win))
-            same_game = len(set(games)) < k
+            same_game = n_games == 1
             book = None if same_game else float(np.prod([decimal[id(p)] for p in combo]))
             ev = float(np.mean(payout)) - 1 if not same_game else None
             found.append(Parlay(list(combo), p_hit, ev,

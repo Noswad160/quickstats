@@ -184,7 +184,7 @@ def test_slate_run_produces_lines_and_prices(league):
              "total_close": 224.5, "over_odds_close": -110.0, "under_odds_close": -110.0,
              "ml_home_close": -130.0, "ml_away_close": 110.0}
     res = slate.run(box, [synth.upcoming(day, lines=lines)], injuries=[], as_of=pd.Timestamp(day, tz="UTC"),
-                    props=False, n=4000, min_edge=-1)
+                    props=False, n=4000, min_edge=-1, allowed={"spread", "total", "moneyline", "prop"})
     g = res["lines"][0]["game"]
     assert g["spread_home"] < -2           # best team at home vs worst: well clear of a 2.5 favorite
     assert res["singles"] and any(p.leg.market == "spread" and p.leg.side == "home" for p in res["singles"])
@@ -239,3 +239,26 @@ def test_summary_skips_player_rows_without_ids():
     raw["boxscore"]["players"][0]["statistics"][0]["athletes"].append({"athlete": {"displayName": "TEAM"}, "stats": []})
     s = espn.parse_summary(raw)
     assert all(p["player_id"] for p in s["players"])
+
+
+def test_star_rates_are_not_flattened_to_the_league_average(league):
+    _, box = league
+    p = Projector(box, pd.Timestamp("2025-12-25", tz="UTC"))
+    players = p.game(synth.upcoming("2025-12-25")["game"]).home.players
+    by_id = {x.player_id: x for x in players}
+    star, bench = by_id[synth.player_ids("1")[0]], by_id[synth.player_ids("1")[8]]
+    # the synthetic star gets a much bigger share of his team's points per minute than a bench player
+    assert star.rates["pts"] > 1.3 * bench.rates["pts"]
+
+
+def test_game_lines_need_a_backtest_that_beats_the_close(league):
+    _, box = league
+    day = "2025-12-25"
+    lines = {"spread_home_close": 30.5, "spread_home_odds_close": -110.0, "spread_away_odds_close": -110.0}
+    res = slate.run(box, [synth.upcoming(day, lines=lines)], injuries=[], as_of=pd.Timestamp(day, tz="UTC"),
+                    props=False, n=2000, min_edge=0.0)
+    assert res["singles"] == [] and "No spread or total bets" in report.slate_md(res)
+    losing = {"spread_mae_model": 11.5, "spread_mae_close": 11.1, "spread_roi_at_-110": 0.02}
+    winning = {"spread_mae_model": 10.9, "spread_mae_close": 11.1, "spread_roi_at_-110": 0.03}
+    assert "spread" not in slate.proven_markets(losing)
+    assert {"spread", "moneyline"} <= slate.proven_markets(winning)

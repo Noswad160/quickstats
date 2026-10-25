@@ -3,16 +3,17 @@
 Points per 100 possessions for team A in a game is modelled as
     league + off[A] + def[B] + home_edge * (+1/2 home, -1/2 away) + b2b * (A on a back-to-back)
 and possessions as league_pace + pace[A] + pace[B]. Both are fit by weighted ridge regression,
-with older games decayed so ratings follow form, and shrunk toward average when data is thin.
+with each team's older games decayed so ratings follow form, and shrunk toward average when data is thin.
 """
 from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
-HALF_LIFE_DAYS = 40.0
-RIDGE = 6.0           # in "games" of weight pulling each rating toward zero
+HALF_LIFE_GAMES = 25.0   # a team's own games, so the offseason doesn't erase last season
+RIDGE = 6.0              # in "games" of weight pulling each rating toward zero
 PACE_RIDGE = 6.0
+B2B_PRIOR, B2B_RIDGE = -1.5, 200.0   # points per 100 on a back-to-back; data moves it only with lots of evidence
 
 
 @dataclass
@@ -51,8 +52,8 @@ def fit(teams: pd.DataFrame, as_of: pd.Timestamp) -> Ratings:
     t = t[t["poss"] > 0]
     if t.empty:
         raise ValueError("no games before as_of")
-    age = (as_of - t["start"]).dt.total_seconds() / 86400
-    w = 0.5 ** (age / HALF_LIFE_DAYS).to_numpy()
+    games_ago = t.groupby("team_id")["start"].rank(ascending=False, method="first") - 1
+    w = 0.5 ** (games_ago / HALF_LIFE_GAMES).to_numpy()
     ids = sorted(set(t["team_id"]) | set(t["opp_id"]))
     ix = {tid: i for i, tid in enumerate(ids)}
     n, k = len(t), len(ids)
@@ -74,9 +75,10 @@ def fit(teams: pd.DataFrame, as_of: pd.Timestamp) -> Ratings:
     X[rows, k + b] = 1
     X[:, 2 * k] = home
     X[:, 2 * k + 1] = b2b
-    y = eff - league_eff
-    reg = np.r_[np.full(2 * k, RIDGE), 1e-3, 1e-3]
+    y = eff - league_eff - B2B_PRIOR * b2b      # fit the back-to-back effect as a deviation from its prior
+    reg = np.r_[np.full(2 * k, RIDGE), 1e-3, B2B_RIDGE]
     beta = np.linalg.solve((X * w[:, None]).T @ X + np.diag(reg), (X * w[:, None]).T @ y)
+    beta[2 * k + 1] += B2B_PRIOR
 
     # pace: possessions = league + pace[A] + pace[B]
     P = np.zeros((n, k))

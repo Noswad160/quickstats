@@ -29,13 +29,14 @@ class Leg:
     stat: str = ""
     team: str = ""       # team abbreviation for spread/moneyline/team_total
     team_side: str = ""  # home | away, for team totals (whose side is over/under)
+    matchup: str = ""    # e.g. "LAL @ UTAH", for labels
 
     @property
     def label(self) -> str:
         if self.market == "prop":
             return f"{self.player} {self.side} {self.line:g} {STAT_NAMES.get(self.stat, self.stat)}"
         if self.market == "total":
-            return f"Game {self.side} {self.line:g}"
+            return f"{self.matchup or 'Game'} {self.side} {self.line:g}"
         if self.market == "team_total":
             return f"{self.team} team total {self.side} {self.line:g}"
         if self.market == "spread":

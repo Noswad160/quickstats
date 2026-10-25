@@ -19,21 +19,21 @@ def game_lines(g: dict, lines: dict | None) -> list[Leg]:
     """DraftKings spread/total/moneyline legs from ESPN, current ('close') numbers."""
     if not lines:
         return []
-    gid, out = g["game_id"], []
+    gid, out, mu = g["game_id"], [], f"{g['away_abbr']} @ {g['home_abbr']}"
     sp = lines.get("spread_home_close")
     if sp is not None:
         if lines.get("spread_home_odds_close") is not None:
-            out.append(Leg(gid, "spread", "home", sp, lines["spread_home_odds_close"], "DraftKings", team=g["home_abbr"]))
+            out.append(Leg(gid, "spread", "home", sp, lines["spread_home_odds_close"], "DraftKings", team=g["home_abbr"], matchup=mu))
         if lines.get("spread_away_odds_close") is not None:
-            out.append(Leg(gid, "spread", "away", -sp, lines["spread_away_odds_close"], "DraftKings", team=g["away_abbr"]))
+            out.append(Leg(gid, "spread", "away", -sp, lines["spread_away_odds_close"], "DraftKings", team=g["away_abbr"], matchup=mu))
     tot = lines.get("total_close")
     if tot is not None:
         for side in ("over", "under"):
             if lines.get(f"{side}_odds_close") is not None:
-                out.append(Leg(gid, "total", side, tot, lines[f"{side}_odds_close"], "DraftKings"))
+                out.append(Leg(gid, "total", side, tot, lines[f"{side}_odds_close"], "DraftKings", matchup=mu))
     for side, abbr in (("home", g["home_abbr"]), ("away", g["away_abbr"])):
         if lines.get(f"ml_{side}_close") is not None:
-            out.append(Leg(gid, "moneyline", side, None, lines[f"ml_{side}_close"], "DraftKings", team=abbr))
+            out.append(Leg(gid, "moneyline", side, None, lines[f"ml_{side}_close"], "DraftKings", team=abbr, matchup=mu))
     return out
 
 
@@ -65,8 +65,19 @@ def my_lines(g: dict, sim: GameSim) -> dict:
     return {"game": game, "players": players}
 
 
+def proven_markets(backtest: dict | None) -> set[str]:
+    """Markets where the backtest shows the model beating the closing line. Props can't be backtested
+    without historical prop prices, so they're allowed and labelled unproven in the report."""
+    allowed = {"prop"}
+    for kind, markets in (("spread", ("spread", "moneyline")), ("total", ("total",))):
+        if backtest and backtest.get(f"{kind}_mae_model", 9e9) < backtest.get(f"{kind}_mae_close", 0) \
+                and (backtest.get(f"{kind}_roi_at_-110") or -1) > 0:
+            allowed |= set(markets)
+    return allowed
+
+
 def run(box: Box, slate: list[dict], injuries: list[dict], as_of: pd.Timestamp | None = None,
-        props: bool = True, n: int = SIMS, min_edge: float = 0.03) -> dict:
+        props: bool = True, n: int = SIMS, min_edge: float = 0.03, allowed: set[str] | None = None) -> dict:
     as_of = as_of or pd.Timestamp.now(tz="UTC")
     proj = Projector(box, as_of, injuries)
     sims, lines, legs = {}, [], []
@@ -90,7 +101,8 @@ def run(box: Box, slate: list[dict], injuries: list[dict], as_of: pd.Timestamp |
         except Exception:
             log.exception("props fetch failed")
     priced = [price(leg, sims[leg.game_id]) for leg in legs if leg.game_id in sims]
-    singles = parlay.candidates(priced, min_edge=min_edge)
+    allowed = proven_markets(None) if allowed is None else allowed
+    singles = parlay.candidates([p for p in priced if p.leg.market in allowed], min_edge=min_edge)
     parlays = parlay.build(singles, sims) if len(singles) >= 2 else []
     return {"as_of": as_of.isoformat(), "lines": lines, "priced": priced, "singles": singles, "parlays": parlays,
-            "ratings": proj.ratings}
+            "ratings": proj.ratings, "allowed": allowed, "props_priced": any(p.leg.market == "prop" for p in priced)}

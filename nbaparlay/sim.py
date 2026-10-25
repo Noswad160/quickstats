@@ -16,8 +16,8 @@ import numpy as np
 STATS = ("pts", "reb", "ast", "fg3m", "stl", "blk", "tov")
 COMBOS = {"pra": ("pts", "reb", "ast"), "pr": ("pts", "reb"), "pa": ("pts", "ast"), "ra": ("reb", "ast"),
           "sb": ("stl", "blk")}
-# gamma-Poisson shape per stat: lower = more game-to-game variation
-DISPERSION = {"reb": 12.0, "ast": 8.0, "fg3m": 6.0, "stl": 4.0, "blk": 3.0, "tov": 6.0}
+# gamma-Poisson shape per stat: lower = more game-to-game variation (reb/ast/3s calibrated on 2025-26)
+DISPERSION = {"reb": 30.0, "ast": 30.0, "fg3m": 30.0, "stl": 8.0, "blk": 6.0, "tov": 12.0}
 
 
 @dataclass
@@ -42,6 +42,7 @@ class PlayerProj:
     rates: dict[str, float]         # per-minute expected stats, keys from STATS
     play_prob: float = 1.0
     starter: bool = False
+    usual_prob: float | None = None  # how often he plays when not on the injury report (defaults to play_prob)
 
 
 @dataclass
@@ -99,9 +100,12 @@ def _gamma_poisson(rng, mean: np.ndarray, k: float) -> np.ndarray:
 
 
 def _team_points(rng, team: TeamProj, avail: np.ndarray, pace: np.ndarray, prm: Params) -> np.ndarray:
+    # Team ratings already reflect the usual rotation, so only availability below a player's usual
+    # rate (injuries, rest) costs points, and an occasional player suiting up adds a little.
     exp_pts = np.array([p.minutes * p.rates.get("pts", 0.0) for p in team.players])
-    total = exp_pts.sum() or 1.0
-    missing_share = ((~avail) * exp_pts).sum(axis=1) / total
+    usual = np.array([p.play_prob if p.usual_prob is None else p.usual_prob for p in team.players])
+    total = (usual * exp_pts).sum() or 1.0
+    missing_share = ((usual - avail) * exp_pts).sum(axis=1) / total
     mean = team.points * (1 - (1 - prm.replacement) * missing_share)
     eff = rng.lognormal(0.0, prm.team_eff_sd, len(pace))
     return np.maximum(60, mean * pace * eff + rng.normal(0, prm.team_resid_sd, len(pace)))

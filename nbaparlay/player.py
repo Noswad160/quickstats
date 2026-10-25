@@ -55,8 +55,12 @@ class History:
         p = players[players["start"] < as_of].sort_values("start")
         self.as_of = as_of
         self.by_player = {pid: g for pid, g in p.groupby("player_id", sort=False)}
+        # current team = team of his latest appearance; on the roster if he's played for them recently
         latest = p.groupby("player_id").tail(1)
         recent = latest[latest["start"] > as_of - pd.Timedelta(days=ROSTER_DAYS)]
+        played = p[(p["min"] > 0) & (p["start"] > as_of - pd.Timedelta(days=ROSTER_DAYS))]
+        played_for = set(zip(played["player_id"], played["team_id"]))
+        recent = recent[[(pid, tid) in played_for for pid, tid in zip(recent["player_id"], recent["team_id"])]]
         self.rosters = recent.groupby("team_id")["player_id"].apply(list).to_dict()
         t = teams[teams["start"] < as_of].sort_values("start")
         self.team_games = {tid: g["game_id"] for tid, g in t.groupby("team_id", sort=False)}
@@ -80,7 +84,7 @@ def project_player(hist: pd.DataFrame, team_games: pd.Series, priors: dict[bool,
 
     r = played.tail(RATE_GAMES)
     wr = _decay(len(r), RATE_HALF_LIFE) * r["min"].to_numpy()
-    mins = wr.sum() / max(r["min"].mean(), 1e-9)  # effective minutes behind the rates
+    mins = wr.sum()  # effective (decayed) minutes behind the rates
     prior = priors[starter]
     rates = {}
     for s in STATS:
@@ -94,12 +98,13 @@ def project_player(hist: pd.DataFrame, team_games: pd.Series, priors: dict[bool,
     recent_team = set(team_games.tail(5))
     appeared = hist[hist["game_id"].isin(recent_team) & (hist["min"] > 0)]["game_id"].nunique()
     seen = len(recent_team & set(hist["game_id"])) or 1
-    base = min(1.0, max(0.25, appeared / seen))
+    usual = min(1.0, appeared / seen)                 # what the team ratings already assume
+    base = max(0.25, usual)                           # untagged players: keep some chance he suits up
     play_prob = STATUS_PLAY_PROB.get(status, base) if status else base
 
     row = hist.iloc[-1]
     return PlayerProj(player_id=str(row["player_id"]), name=str(row["name"]), minutes=mu,
-                      minutes_sd=max(3.0, sd), rates=rates, play_prob=play_prob, starter=starter)
+                      minutes_sd=max(3.0, sd), rates=rates, play_prob=play_prob, starter=starter, usual_prob=usual)
 
 
 def project_team(hist: History, team_id: str, opp_id: str, injuries: dict[str, str], priors, opp_factors,

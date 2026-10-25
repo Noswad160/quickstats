@@ -42,10 +42,11 @@ def cmd_picks(a):
     today = a.date
     games = ingest.slate(today) + ingest.slate((pd.Timestamp(today) + pd.Timedelta(days=1)).date().isoformat())
     injuries = espn.parse_injuries(espn.injuries())
-    res = slate.run(box, games, injuries, props=not a.no_props, min_edge=a.min_edge)
     bt = None
     if a.backtest_json and os.path.exists(a.backtest_json):
         bt = json.load(open(a.backtest_json))
+    res = slate.run(box, games, injuries, props=not a.no_props, min_edge=a.min_edge,
+                    allowed=slate.proven_markets(bt))
     _write(a.out, report.slate_md(res, bt))
     if a.json:
         _write(a.json, json.dumps({"as_of": res["as_of"], "lines": res["lines"],
