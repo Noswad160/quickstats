@@ -2,6 +2,8 @@
 import logging
 from datetime import date, timedelta
 
+import requests
+
 from . import espn, store
 
 log = logging.getLogger(__name__)
@@ -34,6 +36,12 @@ def fetch_day(root: str, day: str, force: bool = False) -> int:
     for e in done:
         try:
             games.append(espn.parse_summary(espn.summary(e["game"]["game_id"])))
+        except requests.HTTPError as exc:
+            if exc.response is not None and exc.response.status_code == 404:
+                log.warning("no summary for %s; skipping that game", e["game"]["game_id"])
+                continue
+            log.exception("summary %s failed", e["game"]["game_id"])
+            return 0
         except Exception:
             log.exception("summary %s failed", e["game"]["game_id"])
             return 0  # don't store a partial day

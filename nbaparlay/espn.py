@@ -29,7 +29,8 @@ def get(path: str, params: dict | None = None, retries: int = 3, pause: float = 
             time.sleep(pause)
             return r.json()
         except (requests.ConnectionError, requests.Timeout, requests.HTTPError) as exc:
-            if attempt == retries:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if attempt == retries or (status is not None and 400 <= status < 500 and status != 429):
                 raise
             log.warning("ESPN %s failed (%s); retrying", path, exc)
             time.sleep(2 ** (attempt + 1))
@@ -181,7 +182,9 @@ def parse_summary(s: dict) -> dict:
                 fgm, fga = _made_att(vals.get("fieldGoalsMade-fieldGoalsAttempted"))
                 fg3m, fg3a = _made_att(vals.get("threePointFieldGoalsMade-threePointFieldGoalsAttempted"))
                 ftm, fta = _made_att(vals.get("freeThrowsMade-freeThrowsAttempted"))
-                ath = a["athlete"]
+                ath = a.get("athlete") or {}
+                if not ath.get("id"):
+                    continue  # occasional unnamed placeholder rows
                 players.append({
                     "game_id": game_id, "team_id": team_id, "player_id": ath["id"], "name": ath.get("displayName"),
                     "position": (ath.get("position") or {}).get("abbreviation"),

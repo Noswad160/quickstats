@@ -232,3 +232,10 @@ def test_props_parse_and_best_price():
     over = next(l for l in best if l.side == "over")
     assert over.book == "FanDuel" and over.price == -108 and over.stat == "pts" and over.player_id == "3945274"
     assert len(best) == 2
+
+
+def test_summary_skips_player_rows_without_ids():
+    raw = fixture("summary_final.json")
+    raw["boxscore"]["players"][0]["statistics"][0]["athletes"].append({"athlete": {"displayName": "TEAM"}, "stats": []})
+    s = espn.parse_summary(raw)
+    assert all(p["player_id"] for p in s["players"])
