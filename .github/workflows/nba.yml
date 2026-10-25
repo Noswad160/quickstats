@@ -42,7 +42,7 @@ jobs:
           if git ls-remote --exit-code --heads origin nba-data >/dev/null; then
             git clone --quiet --depth 1 --branch nba-data "$url" data
           else
-            mkdir data && cd data && git init -q -b nba-data && git remote add origin "$url"
+            mkdir data && git -C data init -q -b nba-data && git -C data remote add origin "$url"
           fi
           cd data && git config user.name nbaparlay && git config user.email nbaparlay@users.noreply.github.com
 
