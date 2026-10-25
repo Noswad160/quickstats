@@ -34,9 +34,9 @@ Results go to the `nba-data` branch: `PICKS.md` (today's lines, bets and parlays
 
 932 games, December to April, each projected with only data from before tip-off:
 
-- **Spreads:** the model misses by 11.48 points a game, DraftKings' close by 11.13. Betting its
-  picks went 53.2% over 656 bets (break-even 52.4%), well within luck. No proven edge.
-- **Totals:** 15.92 vs 14.58 for the close, 49.4% betting. No edge.
+- **Spreads:** the model misses by 11.47 points a game, DraftKings' close by 11.13. Betting its
+  picks went 51.7% over 659 bets (break-even 52.4%). No edge.
+- **Totals:** 15.91 vs 14.58 for the close, 49.4% over 710 bets. No edge.
 - **Player projections:** slightly better than a last-10-game average (points 4.62 vs 4.70 off,
   pts+reb+ast 6.08 vs 6.20), and calibrated: outcomes land over my line about half the time.
 
